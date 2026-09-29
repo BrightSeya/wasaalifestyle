@@ -10,7 +10,7 @@
         ]
         : [
             ['label' => 'Dashboard', 'route' => 'dashboard'],
-            ['label' => 'Schedule', 'route' => 'schedules.index', 'active' => 'schedules.*'],
+            ['label' => 'Schedule', 'route' => 'schedules.week', 'active' => 'schedules.*'],
             ['label' => 'Activities', 'route' => null],
             ['label' => 'Recommendations', 'route' => null],
             ['label' => 'Settings', 'route' => null],

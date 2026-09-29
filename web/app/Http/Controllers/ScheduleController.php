@@ -28,9 +28,9 @@ class ScheduleController extends Controller
 
     public function store(ScheduleRequest $request): RedirectResponse
     {
-        $request->user()->schedules()->create($request->scheduleData());
+        $schedule = $request->user()->schedules()->create($request->scheduleData());
 
-        return redirect()->route('schedules.index')->with('status', 'Entry created.');
+        return $this->backToWeek($schedule)->with('status', 'Entry created.');
     }
 
     public function edit(Schedule $schedule): View
@@ -46,7 +46,7 @@ class ScheduleController extends Controller
 
         $schedule->update($request->scheduleData());
 
-        return redirect()->route('schedules.index')->with('status', 'Entry updated.');
+        return $this->backToWeek($schedule)->with('status', 'Entry updated.');
     }
 
     public function destroy(Schedule $schedule): RedirectResponse
@@ -55,6 +55,11 @@ class ScheduleController extends Controller
 
         $schedule->delete();
 
-        return redirect()->route('schedules.index')->with('status', 'Entry deleted.');
+        return $this->backToWeek($schedule)->with('status', 'Entry deleted.');
+    }
+
+    private function backToWeek(Schedule $schedule): RedirectResponse
+    {
+        return redirect()->route('schedules.week', ['date' => $schedule->start_datetime->format('Y-m-d')]);
     }
 }
