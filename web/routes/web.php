@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\ScheduleDayController;
 use App\Http\Controllers\ScheduleWeekController;
 use Illuminate\Support\Facades\Route;
 
@@ -19,6 +20,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
     Route::view('/dashboard', 'dashboard')->name('dashboard');
     Route::get('/schedules/week', ScheduleWeekController::class)->name('schedules.week');
+    Route::get('/schedules/day', ScheduleDayController::class)->name('schedules.day');
     Route::resource('schedules', ScheduleController::class)->except('show');
 
     Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
