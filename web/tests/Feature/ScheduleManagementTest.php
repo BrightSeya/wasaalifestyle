@@ -59,7 +59,7 @@ class ScheduleManagementTest extends TestCase
         $date = now()->addDay()->format('Y-m-d');
 
         $this->actingAs($user)->post('/schedules', $this->validData())
-            ->assertRedirect(route('schedules.index'))
+            ->assertRedirect(route('schedules.week', ['date' => $date]))
             ->assertSessionHas('status', 'Entry created.');
 
         $schedule = $user->schedules()->sole();
@@ -117,7 +117,7 @@ class ScheduleManagementTest extends TestCase
         $this->actingAs($user)->get(route('schedules.edit', $schedule))->assertOk()->assertSee($schedule->title);
 
         $this->actingAs($user)->put(route('schedules.update', $schedule), $this->validData(['title' => 'Updated']))
-            ->assertRedirect(route('schedules.index'));
+            ->assertRedirect(route('schedules.week', ['date' => now()->addDay()->format('Y-m-d')]));
 
         $this->assertSame('Updated', $schedule->fresh()->title);
     }
@@ -128,7 +128,7 @@ class ScheduleManagementTest extends TestCase
         $schedule = Schedule::factory()->for($user)->create();
 
         $this->actingAs($user)->delete(route('schedules.destroy', $schedule))
-            ->assertRedirect(route('schedules.index'));
+            ->assertRedirect(route('schedules.week', ['date' => $schedule->start_datetime->format('Y-m-d')]));
 
         $this->assertModelMissing($schedule);
     }
