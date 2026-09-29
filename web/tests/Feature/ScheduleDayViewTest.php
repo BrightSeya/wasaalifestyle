@@ -69,6 +69,16 @@ class ScheduleDayViewTest extends TestCase
             ->assertSee('Nothing scheduled for this day.');
     }
 
+    public function test_weekly_recurring_entry_appears_on_its_weekday(): void
+    {
+        // Wednesday 16 Sep repeats weekly, so it falls on Wednesday 30 Sep but not Thursday 1 Oct.
+        $schedule = $this->entry('Gym Session', '2026-09-16 17:00', '2026-09-16 18:00');
+        $schedule->update(['is_recurring' => true, 'recurrence_rule' => 'weekly']);
+
+        $this->actingAs($this->user)->get('/schedules/day')->assertSee('Gym Session')->assertSee('Weekly');
+        $this->actingAs($this->user)->get('/schedules/day?date=2026-10-01')->assertDontSee('Gym Session');
+    }
+
     public function test_navigation_links(): void
     {
         $this->actingAs($this->user)->get('/schedules/day')

@@ -14,7 +14,7 @@ class ScheduleController extends Controller
     public function index(Request $request): View
     {
         $schedules = $request->user()->schedules()
-            ->where('end_datetime', '>=', now()->startOfDay())
+            ->where(fn ($query) => $query->where('end_datetime', '>=', now()->startOfDay())->orWhere('is_recurring', true))
             ->orderBy('start_datetime')
             ->paginate(20);
 

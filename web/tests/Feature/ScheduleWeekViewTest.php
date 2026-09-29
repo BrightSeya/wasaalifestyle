@@ -105,4 +105,14 @@ class ScheduleWeekViewTest extends TestCase
         $this->actingAs($this->user)->get('/dashboard')
             ->assertSee('href="'.route('schedules.week').'"', false);
     }
+
+    public function test_daily_recurring_entry_appears_on_every_day(): void
+    {
+        $schedule = $this->entry('Meditation', '2026-09-01 07:00', '2026-09-01 07:15');
+        $schedule->update(['is_recurring' => true, 'recurrence_rule' => 'daily']);
+
+        $html = $this->actingAs($this->user)->get('/schedules/week')->assertOk()->getContent();
+
+        $this->assertSame(7, substr_count($html, '<span class="block truncate font-semibold">Meditation</span>'));
+    }
 }

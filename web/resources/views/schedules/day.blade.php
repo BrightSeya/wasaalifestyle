@@ -18,12 +18,15 @@
         <ol class="divide-y divide-gray-100 rounded-xl bg-white shadow-sm">
             @foreach ($entries as $entry)
                 <li>
-                    <a href="{{ route('schedules.edit', $entry) }}" class="flex items-center gap-4 px-4 py-3 hover:bg-gray-50">
+                    <a href="{{ route('schedules.edit', $entry->schedule) }}" class="flex items-center gap-4 px-4 py-3 hover:bg-gray-50">
                         <span class="w-36 shrink-0 text-sm text-gray-500">
-                            {{ $entry->start_datetime->format('g:i A') }} - {{ $entry->end_datetime->format('g:i A') }}
+                            {{ $entry->start->format('g:i A') }} - {{ $entry->end->format('g:i A') }}
                         </span>
-                        <span class="flex-1 font-medium">{{ $entry->title }}</span>
-                        <span class="rounded bg-gray-100 px-2 py-0.5 text-xs">{{ ucfirst($entry->category->value) }}</span>
+                        <span class="flex-1 font-medium">{{ $entry->schedule->title }}</span>
+                        @if ($entry->schedule->is_recurring)
+                            <span class="text-xs text-gray-500">{{ ucfirst($entry->schedule->recurrence_rule) }}</span>
+                        @endif
+                        <span class="rounded bg-gray-100 px-2 py-0.5 text-xs">{{ ucfirst($entry->schedule->category->value) }}</span>
                     </a>
                 </li>
             @endforeach

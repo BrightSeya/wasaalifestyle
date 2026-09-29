@@ -56,15 +56,18 @@
 
                     @foreach ($entriesByDay->get($day->format('Y-m-d'), []) as $entry)
                         @php
-                            $minutesFromTop = ($entry->start_datetime->hour - $startHour) * 60 + $entry->start_datetime->minute;
-                            $duration = abs($entry->start_datetime->diffInMinutes($entry->end_datetime));
+                            $minutesFromTop = ($entry->start->hour - $startHour) * 60 + $entry->start->minute;
+                            $duration = abs($entry->start->diffInMinutes($entry->end));
                         @endphp
-                        <a href="{{ route('schedules.edit', $entry) }}"
-                           class="absolute inset-x-1 overflow-hidden rounded-md border px-2 py-1 text-xs hover:shadow {{ $colors[$entry->category->value] }}"
+                        <a href="{{ route('schedules.edit', $entry->schedule) }}"
+                           class="absolute inset-x-1 overflow-hidden rounded-md border px-2 py-1 text-xs hover:shadow {{ $colors[$entry->schedule->category->value] }}"
                            style="top: {{ $minutesFromTop / 60 * $hourHeight }}px; height: {{ max(20, $duration / 60 * $hourHeight) }}px;"
-                           title="{{ $entry->title }} ({{ $entry->start_datetime->format('g:i A') }} - {{ $entry->end_datetime->format('g:i A') }})">
-                            <span class="block truncate font-semibold">{{ $entry->title }}</span>
-                            <span class="block truncate text-gray-500">{{ ucfirst($entry->category->value) }}</span>
+                           title="{{ $entry->schedule->title }} ({{ $entry->start->format('g:i A') }} - {{ $entry->end->format('g:i A') }})">
+                            <span class="block truncate font-semibold">{{ $entry->schedule->title }}</span>
+                            <span class="block truncate text-gray-500">
+                                {{ ucfirst($entry->schedule->category->value) }}
+                                @if ($entry->schedule->is_recurring) &middot; {{ ucfirst($entry->schedule->recurrence_rule) }} @endif
+                            </span>
                         </a>
                     @endforeach
                 </div>
