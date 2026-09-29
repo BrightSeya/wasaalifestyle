@@ -1,0 +1,25 @@
+name: Task
+description: Chore, documentation, test or research work
+assignees: ["BrightSeya"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Task type
+      options: [chore, docs, test, research]
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] 
+    validations:
+      required: true
