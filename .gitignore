@@ -1,0 +1,26 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ML artefacts (large and reproducible from scripts)
+ml/**/data/raw/
+ml/**/data/processed/
+ml/**/models/*.joblib
