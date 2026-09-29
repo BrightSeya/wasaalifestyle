@@ -10,7 +10,7 @@
         ]
         : [
             ['label' => 'Dashboard', 'route' => 'dashboard'],
-            ['label' => 'Schedule', 'route' => null],
+            ['label' => 'Schedule', 'route' => 'schedules.index', 'active' => 'schedules.*'],
             ['label' => 'Activities', 'route' => null],
             ['label' => 'Recommendations', 'route' => null],
             ['label' => 'Settings', 'route' => null],
@@ -38,14 +38,15 @@
 
             <nav class="space-y-1" aria-label="Main">
                 @foreach ($nav as $item)
+                    @php($isActive = $item['route'] && request()->routeIs($item['active'] ?? $item['route']))
                     @if ($item['route'])
                         <a href="{{ route($item['route']) }}"
                            @class([
                                'block rounded-md px-3 py-2 text-sm',
-                               'bg-brand/30 font-semibold' => request()->routeIs($item['route']),
-                               'text-gray-600 hover:bg-gray-100' => ! request()->routeIs($item['route']),
+                               'bg-brand/30 font-semibold' => $isActive,
+                               'text-gray-600 hover:bg-gray-100' => ! $isActive,
                            ])
-                           @if (request()->routeIs($item['route'])) aria-current="page" @endif>
+                           @if ($isActive) aria-current="page" @endif>
                             {{ $item['label'] }}
                         </a>
                     @else
@@ -77,6 +78,12 @@
             </header>
 
             <main class="flex-1 p-6">
+                @if (session('status'))
+                    <div role="status" class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-800">
+                        {{ session('status') }}
+                    </div>
+                @endif
+
                 {{ $slot }}
             </main>
         </div>
