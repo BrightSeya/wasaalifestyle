@@ -1,0 +1,31 @@
+name: Feature
+description: New functionality from the sprint plan
+title: "feat: "
+labels: ["type:feature"]
+assignees: ["BrightSeya"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What needs to be built and why.
+    validations:
+      required: true
+  - type: input
+    id: reference
+    attributes:
+      label: Proposal reference
+      description: e.g. FRQ3, NFRQ1, Section 3.5.3
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] 
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Technical notes
+      description: Files, endpoints, tables or models involved.
