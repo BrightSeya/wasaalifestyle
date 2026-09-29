@@ -32,6 +32,16 @@ class UserFactory extends Factory
         ];
     }
 
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => ['role' => 'admin']);
+    }
+
+    public function suspended(): static
+    {
+        return $this->state(fn (array $attributes) => ['status' => 'suspended']);
+    }
+
     /**
      * Indicate that the model's email address should be unverified.
      */
