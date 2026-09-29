@@ -9,4 +9,9 @@
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* Wasaa palette from the wireframes */
+    --color-brand: #ffb84d;
+    --color-brand-dark: #f5a623;
+    --color-canvas: #f7f6f3;
 }
