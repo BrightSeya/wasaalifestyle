@@ -14,12 +14,7 @@ class ScheduleWeekController extends Controller
 
     public function __invoke(Request $request): View
     {
-        $input = $request->query('date');
-        $day = is_string($input) && Carbon::canBeCreatedFromFormat($input, 'Y-m-d')
-            ? Carbon::createFromFormat('Y-m-d', $input)
-            : now();
-
-        $weekStart = $day->copy()->startOfWeek(Carbon::MONDAY)->startOfDay();
+        $weekStart = $this->dateFromQuery($request)->startOfWeek(Carbon::MONDAY);
         $weekEnd = $weekStart->copy()->addWeek();
 
         $entries = $request->user()->schedules()
