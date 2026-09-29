@@ -20,6 +20,7 @@
         </nav>
 
         <div class="flex items-center gap-3 text-sm">
+            <a href="{{ route('schedules.day') }}" class="text-gray-600 underline">Day view</a>
             <a href="{{ route('schedules.index') }}" class="text-gray-600 underline">List view</a>
             <a href="{{ route('schedules.create') }}" class="rounded-full bg-gray-900 px-4 py-2 font-semibold text-white">+ New Task</a>
         </div>
