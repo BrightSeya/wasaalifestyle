@@ -3,6 +3,8 @@
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\PreferencesController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ScheduleDayController;
 use App\Http\Controllers\ScheduleWeekController;
@@ -25,6 +27,10 @@ Route::middleware('auth')->group(function () {
     Route::resource('schedules', ScheduleController::class)->except('show');
     Route::resource('activities', ActivityController::class)->except('show');
     Route::post('/activities/{activity}/log', [ActivityController::class, 'log'])->name('activities.log');
+
+    Route::get('/settings', [ProfileController::class, 'edit'])->name('settings.edit');
+    Route::put('/settings/profile', [ProfileController::class, 'update'])->name('settings.profile');
+    Route::put('/settings/preferences', [PreferencesController::class, 'update'])->name('settings.preferences');
 
     Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
         Route::view('/', 'admin.dashboard')->name('dashboard');
