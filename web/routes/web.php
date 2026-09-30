@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\ScheduleController;
@@ -22,6 +23,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/schedules/week', ScheduleWeekController::class)->name('schedules.week');
     Route::get('/schedules/day', ScheduleDayController::class)->name('schedules.day');
     Route::resource('schedules', ScheduleController::class)->except('show');
+    Route::resource('activities', ActivityController::class)->except('show');
 
     Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
         Route::view('/', 'admin.dashboard')->name('dashboard');
