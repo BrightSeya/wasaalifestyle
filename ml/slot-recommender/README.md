@@ -48,3 +48,19 @@ Raw and processed data are ignored by git; every derived file can be regenerated
 ```powershell
 pytest
 ```
+
+## Running the API
+
+Requires a trained model (`python src/train.py`, see the modelling docs) and the completion-rate
+lookup (`python src/features.py` or `python src/negatives.py`).
+
+```powershell
+python app/api.py
+```
+
+Runs on http://127.0.0.1:5001. Check it started correctly:
+
+```powershell
+curl http://127.0.0.1:5001/health
+```
+
