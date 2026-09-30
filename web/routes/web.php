@@ -24,6 +24,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/schedules/day', ScheduleDayController::class)->name('schedules.day');
     Route::resource('schedules', ScheduleController::class)->except('show');
     Route::resource('activities', ActivityController::class)->except('show');
+    Route::post('/activities/{activity}/log', [ActivityController::class, 'log'])->name('activities.log');
 
     Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
         Route::view('/', 'admin.dashboard')->name('dashboard');
