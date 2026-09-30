@@ -34,7 +34,7 @@
                             <td class="px-4 py-3">{{ \Illuminate\Support\Carbon::parse($activity->preferred_time_of_day)->format('g:i A') }}</td>
                             <td class="px-4 py-3">{{ $activity->frequency }}x/week</td>
                             <td class="px-4 py-3">{{ $activity->duration_minutes }} min</td>
-                            <td class="px-4 py-3 text-gray-400">&mdash;</td>
+                            <td class="px-4 py-3">{{ $streaks[$activity->id] }} {{ Str::plural('day', $streaks[$activity->id]) }}</td>
                             <td class="px-4 py-3">
                                 <div class="flex gap-1" aria-label="Recent history">
                                     @forelse ($activity->logs->reverse() as $log)
@@ -67,6 +67,11 @@
                     @endforeach
                 </tbody>
             </table>
+        </div>
+
+        <div class="mt-6 rounded-xl bg-white p-6 shadow-sm">
+            <h2 class="mb-4 text-sm font-semibold text-gray-700">Activity Completion History (Past 7 Days)</h2>
+            <canvas id="completion-chart" data-chart="{{ json_encode($completionByDay) }}" height="80"></canvas>
         </div>
     @endif
 </x-layouts.app>
