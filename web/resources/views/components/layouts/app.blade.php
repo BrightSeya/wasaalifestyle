@@ -12,7 +12,7 @@
             ['label' => 'Dashboard', 'route' => 'dashboard'],
             ['label' => 'Schedule', 'route' => 'schedules.week', 'active' => 'schedules.*'],
             ['label' => 'Activities', 'route' => 'activities.index', 'active' => 'activities.*'],
-            ['label' => 'Recommendations', 'route' => null],
+            ['label' => 'Recommendations', 'route' => 'recommendations.index'],
             ['label' => 'Settings', 'route' => 'settings.edit'],
         ];
 @endphp

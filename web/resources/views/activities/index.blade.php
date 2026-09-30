@@ -1,4 +1,10 @@
 <x-layouts.app title="Activities | WasaaLifestyle" heading="Lifestyle Activities">
+    @if (session('error'))
+        <div role="alert" class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
+            {{ session('error') }}
+        </div>
+    @endif
+
     <div class="mb-4 flex justify-end">
         <a href="{{ route('activities.create') }}" class="rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white">+ Add Activity</a>
     </div>
@@ -18,6 +24,7 @@
                         <th class="px-4 py-3">Streak</th>
                         <th class="px-4 py-3">Recent</th>
                         <th class="px-4 py-3">Log Today</th>
+                        <th class="px-4 py-3"></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -62,6 +69,14 @@
                                         </form>
                                     @endforeach
                                 </div>
+                            </td>
+                            <td class="px-4 py-3">
+                                <form method="POST" action="{{ route('recommendations.store', $activity) }}">
+                                    @csrf
+                                    <button type="submit" class="whitespace-nowrap rounded-full border border-gray-300 px-3 py-1 text-xs font-semibold hover:bg-gray-50">
+                                        Get recommendation
+                                    </button>
+                                </form>
                             </td>
                         </tr>
                     @endforeach
