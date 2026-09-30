@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ActivityRequest;
 use App\Models\Activity;
+use App\Support\ActivityStats;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -12,6 +13,10 @@ use Illuminate\View\View;
 
 class ActivityController extends Controller
 {
+    private const HISTORY_DAYS = 60;
+
+    private const CHART_DAYS = 7;
+
     public function index(Request $request): View
     {
         $activities = $request->user()->activities()
@@ -19,7 +24,18 @@ class ActivityController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('activities.index', compact('activities'));
+        $recentLogs = $request->user()->activityLogs()
+            ->where('scheduled_for', '>=', today()->subDays(self::HISTORY_DAYS))
+            ->get();
+        $logsByActivity = $recentLogs->groupBy('activity_id');
+
+        $streaks = $activities->mapWithKeys(fn (Activity $activity) => [
+            $activity->id => ActivityStats::streak($logsByActivity->get($activity->id, collect())),
+        ]);
+
+        $completionByDay = ActivityStats::completionByDay($recentLogs, self::CHART_DAYS);
+
+        return view('activities.index', compact('activities', 'streaks', 'completionByDay'));
     }
 
     public function create(): View
