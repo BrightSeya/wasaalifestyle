@@ -1,0 +1,42 @@
+{
+  "best_params": {
+    "max_depth": 15,
+    "min_samples_leaf": 2,
+    "n_estimators": 300
+  },
+  "cv_f1": 0.7299,
+  "training_rows": 164405,
+  "feature_columns": [
+    "hour",
+    "day_of_week",
+    "duration_min",
+    "historical_completion_rate",
+    "schedule_density",
+    "gap_since_last_same_category_hrs",
+    "category_work",
+    "category_exercise",
+    "category_leisure",
+    "category_errand",
+    "category_social",
+    "category_rest"
+  ],
+  "feature_importances": {
+    "hour": 0.1813,
+    "day_of_week": 0.0387,
+    "duration_min": 0.1477,
+    "historical_completion_rate": 0.2939,
+    "schedule_density": 0.0776,
+    "gap_since_last_same_category_hrs": 0.1671,
+    "category_work": 0.0077,
+    "category_exercise": 0.0017,
+    "category_leisure": 0.0117,
+    "category_errand": 0.0103,
+    "category_social": 0.0069,
+    "category_rest": 0.0554
+  },
+  "data_files": [
+    "train.csv",
+    "val.csv",
+    "completion_rate_lookup.csv"
+  ]
+}
