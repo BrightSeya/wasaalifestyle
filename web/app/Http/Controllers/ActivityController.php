@@ -7,13 +7,17 @@ use App\Models\Activity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ActivityController extends Controller
 {
     public function index(Request $request): View
     {
-        $activities = $request->user()->activities()->orderBy('name')->get();
+        $activities = $request->user()->activities()
+            ->with(['logs' => fn ($query) => $query->orderByDesc('scheduled_for')->limit(5)])
+            ->orderBy('name')
+            ->get();
 
         return view('activities.index', compact('activities'));
     }
@@ -53,5 +57,25 @@ class ActivityController extends Controller
         $activity->delete();
 
         return redirect()->route('activities.index')->with('status', 'Activity deleted.');
+    }
+
+    public function log(Request $request, Activity $activity): RedirectResponse
+    {
+        Gate::authorize('update', $activity);
+
+        $data = $request->validate([
+            'status' => ['required', Rule::in(['completed', 'missed', 'skipped'])],
+        ]);
+
+        $log = $activity->logs()->whereDate('scheduled_for', today())->first()
+            ?? $activity->logs()->make(['user_id' => $activity->user_id]);
+
+        $log->fill([
+            'scheduled_for' => today()->setTimeFromTimeString($activity->preferred_time_of_day),
+            'status' => $data['status'],
+            'logged_at' => $data['status'] === 'completed' ? now() : null,
+        ])->save();
+
+        return redirect()->route('activities.index')->with('status', 'Activity logged.');
     }
 }
