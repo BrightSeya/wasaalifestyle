@@ -20,7 +20,9 @@ for tasks and lifestyle activities, and a rule-based engine detects scheduling c
 - Pull requests start with `Closes #<issue>` and merge only after CI passes.
 
 ## Author
-Bright Seya Ndinya (164994), Strathmore University. Supervisor: Dr. Deperias Kerre.# OS / editors
+Bright Seya Ndinya (164994), Strathmore University. Supervisor: Dr. Deperias Kerre.
+
+# OS / editors
 .DS_Store
 Thumbs.db
 .vscode/
