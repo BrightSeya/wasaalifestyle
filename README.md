@@ -13,12 +13,6 @@ for tasks and lifestyle activities, and a rule-based engine detects scheduling c
 - Web application: Agile (Scrum-inspired sprints)
 - Machine learning: CRISP-DM
 
-## Workflow
-- Every change starts as an issue on the "Wasaa Lifestyle" project board.
-- Branches: `feat/<issue>-<slug>`, `fix/...`, `docs/...`, `chore/...`, `test/...`
-- Commits follow Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, `test:`).
-- Pull requests start with `Closes #<issue>` and merge only after CI passes.
-
 ## Author
 Bright Seya Ndinya (164994), Strathmore University. Supervisor: Dr. Deperias Kerre.
 
