@@ -64,3 +64,18 @@ Runs on http://127.0.0.1:5001. Check it started correctly:
 curl http://127.0.0.1:5001/health
 ```
 
+### Retraining the model
+
+Set the shared secret as `ML_RETRAIN_KEY` in the service environment. Send the same value
+in the `X-API-Key` header when calling `POST /retrain`; an unset, missing, or incorrect
+key is rejected. Training errors return a clear `503` response and leave the currently
+loaded model active.
+
+```powershell
+$headers = @{ "X-API-Key" = $env:ML_RETRAIN_KEY }
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:5001/retrain -Headers $headers
+```
+
+On success, the endpoint reruns the training pipeline, reloads the model and completion
+lookup into the running process, and returns `cv_f1` and `best_params` from the model card.
+
