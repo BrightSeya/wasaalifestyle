@@ -86,7 +86,7 @@
 
         <div class="mt-6 rounded-xl bg-white p-6 shadow-sm">
             <h2 class="mb-4 text-sm font-semibold text-gray-700">Activity Completion History (Past 7 Days)</h2>
-            <canvas id="completion-chart" data-chart="{{ json_encode($completionByDay) }}" height="80"></canvas>
+            <canvas id="completion-chart" data-completion-chart data-chart="{{ json_encode($completionByDay) }}" height="80"></canvas>
         </div>
     @endif
 </x-layouts.app>

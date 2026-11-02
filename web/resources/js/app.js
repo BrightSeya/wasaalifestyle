@@ -5,8 +5,7 @@ document.querySelector('[data-sidebar-toggle]')?.addEventListener('click', () =>
     document.getElementById('sidebar')?.classList.toggle('hidden');
 });
 
-const chartCanvas = document.getElementById('completion-chart');
-if (chartCanvas) {
+document.querySelectorAll('[data-completion-chart]').forEach((chartCanvas) => {
     const days = JSON.parse(chartCanvas.dataset.chart);
 
     new Chart(chartCanvas, {
@@ -24,4 +23,4 @@ if (chartCanvas) {
             plugins: { legend: { display: false } },
         },
     });
-}
+});
