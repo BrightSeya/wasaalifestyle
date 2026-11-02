@@ -4,7 +4,7 @@
     $nav = auth()->user()->isAdmin()
         ? [
             ['label' => 'Dashboard', 'route' => 'admin.dashboard'],
-            ['label' => 'User Management', 'route' => null],
+            ['label' => 'User Management', 'route' => 'admin.users.index', 'active' => 'admin.users.*'],
             ['label' => 'System Logs', 'route' => null],
             ['label' => 'Performance', 'route' => null],
         ]
