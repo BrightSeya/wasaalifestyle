@@ -7,7 +7,7 @@ for tasks and lifestyle activities, and a rule-based engine detects scheduling c
 - `web/` - Laravel web application (Blade, Sanctum, MySQL)
 - `ml/slot-recommender/` - Python Flask service for time-slot suitability (Random Forest)
 - `ml/no-show/` - Python service for missed-activity prediction (planned)
-- `docs/` - project documentation
+- `docs/` - project documentation ([index](docs/README.md))
 
 ## Methodology
 - Web application: Agile (Scrum-inspired sprints)
