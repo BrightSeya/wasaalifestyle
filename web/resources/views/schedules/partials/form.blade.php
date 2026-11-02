@@ -9,6 +9,19 @@
 @endphp
 
 <div class="space-y-4">
+    @if (session('conflicts'))
+        <div class="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+            <p class="font-semibold">This clashes with your existing schedule:</p>
+            <ul class="mt-1 list-disc pl-4">
+                @foreach (session('conflicts') as $message)
+                    <li>{{ $message }}</li>
+                @endforeach
+            </ul>
+            <p class="mt-2">Submitting again will save it anyway.</p>
+        </div>
+        <input type="hidden" name="confirmed" value="1">
+    @endif
+
     <div>
         <label for="title" class="block text-xs text-gray-600">Task Title</label>
         <input id="title" name="title" type="text" value="{{ old('title', $schedule->title) }}" required autofocus

@@ -145,4 +145,56 @@ class ScheduleManagementTest extends TestCase
         $this->assertModelExists($schedule);
         $this->assertNotSame('Study Session', $schedule->fresh()->title);
     }
+
+    public function test_creating_a_conflicting_entry_requires_confirmation(): void
+    {
+        $user = User::factory()->create();
+        Schedule::factory()->for($user)->create([
+            'start_datetime' => now()->addDay()->setTime(14, 30),
+            'end_datetime' => now()->addDay()->setTime(15, 0),
+            'is_recurring' => false,
+            'recurrence_rule' => null,
+        ]);
+
+        $this->actingAs($user)->post('/schedules', $this->validData())
+            ->assertRedirect()
+            ->assertSessionHas('conflicts');
+
+        $this->assertSame(1, $user->schedules()->count());
+    }
+
+    public function test_confirming_a_conflicting_entry_creates_it_anyway(): void
+    {
+        $user = User::factory()->create();
+        Schedule::factory()->for($user)->create([
+            'start_datetime' => now()->addDay()->setTime(14, 30),
+            'end_datetime' => now()->addDay()->setTime(15, 0),
+            'is_recurring' => false,
+            'recurrence_rule' => null,
+        ]);
+
+        $this->actingAs($user)->post('/schedules', $this->validData(['confirmed' => '1']))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', 'Entry created.');
+
+        $this->assertSame(2, $user->schedules()->count());
+    }
+
+    public function test_updating_to_a_conflicting_time_requires_confirmation(): void
+    {
+        $user = User::factory()->create();
+        $schedule = Schedule::factory()->for($user)->create(['title' => 'Mine']);
+        Schedule::factory()->for($user)->create([
+            'start_datetime' => now()->addDay()->setTime(14, 30),
+            'end_datetime' => now()->addDay()->setTime(15, 0),
+            'is_recurring' => false,
+            'recurrence_rule' => null,
+        ]);
+
+        $this->actingAs($user)->put(route('schedules.update', $schedule), $this->validData())
+            ->assertRedirect()
+            ->assertSessionHas('conflicts');
+
+        $this->assertNotSame('Study Session', $schedule->fresh()->title);
+    }
 }
