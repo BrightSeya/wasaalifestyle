@@ -159,5 +159,8 @@ class RecommendationManagementTest extends TestCase
         $response->assertRedirect(route('recommendations.index'));
         $this->assertDatabaseCount('schedules', 2);
         $this->assertSame('accepted', $recommendation->fresh()->status);
+        $notification = $user->notifications()->sole();
+        $this->assertSame('conflict_alert', $notification->type);
+        $this->assertSame($user->schedules()->latest('id')->first()->id, $notification->schedule_id);
     }
 }
