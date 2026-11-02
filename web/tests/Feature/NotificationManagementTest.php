@@ -1,0 +1,86 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Notification;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class NotificationManagementTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_user_sees_only_their_notifications_newest_first(): void
+    {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $older = Notification::factory()->for($user)->create([
+            'message' => 'Older notice',
+            'created_at' => now()->subHour(),
+        ]);
+        Notification::factory()->for($otherUser)->create(['message' => 'Private notice']);
+        $newer = Notification::factory()->for($user)->create([
+            'message' => 'Newest notice',
+            'type' => 'conflict_alert',
+            'created_at' => now(),
+        ]);
+
+        $this->actingAs($user)->get(route('notifications.index'))
+            ->assertOk()
+            ->assertSeeInOrder(['Newest notice', 'Older notice'])
+            ->assertDontSee('Private notice')
+            ->assertSee('Conflict Alert');
+
+        $this->assertNotSame($older->id, $newer->id);
+    }
+
+    public function test_user_can_mark_a_notification_as_read(): void
+    {
+        $user = User::factory()->create();
+        $notification = Notification::factory()->for($user)->create(['is_read' => false]);
+
+        $this->actingAs($user)->patch(route('notifications.read', $notification))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Notification marked as read.');
+
+        $this->assertTrue($notification->fresh()->is_read);
+    }
+
+    public function test_user_cannot_mark_another_users_notification_as_read(): void
+    {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $notification = Notification::factory()->for($otherUser)->create(['is_read' => false]);
+
+        $this->actingAs($user)->patch(route('notifications.read', $notification))
+            ->assertNotFound();
+
+        $this->assertFalse($notification->fresh()->is_read);
+    }
+
+    public function test_user_can_mark_all_their_notifications_as_read(): void
+    {
+        $user = User::factory()->create();
+        $notification = Notification::factory()->for($user)->create(['is_read' => false]);
+        $otherNotification = Notification::factory()->create(['is_read' => false]);
+
+        $this->actingAs($user)->post(route('notifications.read-all'))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'All notifications marked as read.');
+
+        $this->assertTrue($notification->fresh()->is_read);
+        $this->assertFalse($otherNotification->fresh()->is_read);
+    }
+
+    public function test_sidebar_shows_the_unread_notification_count(): void
+    {
+        $user = User::factory()->create();
+        Notification::factory(2)->for($user)->create(['is_read' => false]);
+        Notification::factory()->for($user)->create(['is_read' => true]);
+
+        $this->actingAs($user)->get('/dashboard')
+            ->assertOk()
+            ->assertSee('aria-label="2 unread notifications"', false);
+    }
+}

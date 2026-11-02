@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Activity;
 use App\Models\Recommendation;
 use App\Services\ConflictChecker;
+use App\Services\ConflictNotificationService;
 use App\Services\RecommendationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -54,7 +55,7 @@ class RecommendationController extends Controller
         return redirect()->route('recommendations.index')->with('status', 'Recommendations ready.');
     }
 
-    public function accept(Request $request, ConflictChecker $conflictChecker, Recommendation $recommendation): RedirectResponse
+    public function accept(Request $request, ConflictChecker $conflictChecker, ConflictNotificationService $notifications, Recommendation $recommendation): RedirectResponse
     {
         Gate::authorize('manage', $recommendation);
 
@@ -70,7 +71,7 @@ class RecommendationController extends Controller
                 ->with('conflicts', [$recommendation->id => $conflicts->pluck('message')->all()]);
         }
 
-        $recommendation->user->schedules()->create([
+        $schedule = $recommendation->user->schedules()->create([
             'title' => $recommendation->activity?->name ?? ucfirst($recommendation->category->value),
             'category' => $recommendation->category,
             'start_datetime' => $recommendation->suggested_start,
@@ -78,6 +79,10 @@ class RecommendationController extends Controller
             'priority' => 'medium',
             'status' => 'pending',
         ]);
+
+        if ($conflicts->isNotEmpty()) {
+            $notifications->create($recommendation->user, $schedule, $conflicts);
+        }
 
         $recommendation->update(['status' => 'accepted']);
 

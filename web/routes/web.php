@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ActivityController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\PreferencesController;
@@ -23,6 +24,9 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
     Route::view('/dashboard', 'dashboard')->name('dashboard');
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
     Route::get('/schedules/week', ScheduleWeekController::class)->name('schedules.week');
     Route::get('/schedules/day', ScheduleDayController::class)->name('schedules.day');
     Route::resource('schedules', ScheduleController::class)->except('show');

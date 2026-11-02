@@ -178,6 +178,10 @@ class ScheduleManagementTest extends TestCase
             ->assertSessionHas('status', 'Entry created.');
 
         $this->assertSame(2, $user->schedules()->count());
+        $notification = $user->notifications()->sole();
+        $this->assertSame('conflict_alert', $notification->type);
+        $this->assertSame($user->schedules()->latest('id')->first()->id, $notification->schedule_id);
+        $this->assertStringContainsString('Overlaps with:', $notification->message);
     }
 
     public function test_updating_to_a_conflicting_time_requires_confirmation(): void
@@ -196,5 +200,24 @@ class ScheduleManagementTest extends TestCase
             ->assertSessionHas('conflicts');
 
         $this->assertNotSame('Study Session', $schedule->fresh()->title);
+    }
+
+    public function test_confirming_a_conflicting_update_creates_a_linked_notification(): void
+    {
+        $user = User::factory()->create();
+        $schedule = Schedule::factory()->for($user)->create(['title' => 'My task']);
+        Schedule::factory()->for($user)->create([
+            'start_datetime' => now()->addDay()->setTime(14, 30),
+            'end_datetime' => now()->addDay()->setTime(15, 0),
+            'is_recurring' => false,
+            'recurrence_rule' => null,
+        ]);
+
+        $this->actingAs($user)->put(route('schedules.update', $schedule), $this->validData(['confirmed' => '1']))
+            ->assertSessionHas('status', 'Entry updated.');
+
+        $notification = $user->notifications()->sole();
+        $this->assertSame($schedule->id, $notification->schedule_id);
+        $this->assertSame('conflict_alert', $notification->type);
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ScheduleRequest;
 use App\Models\Schedule;
 use App\Services\ConflictChecker;
+use App\Services\ConflictNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -27,7 +28,7 @@ class ScheduleController extends Controller
         return view('schedules.create', ['schedule' => new Schedule(['priority' => 'medium'])]);
     }
 
-    public function store(ScheduleRequest $request, ConflictChecker $conflictChecker): RedirectResponse
+    public function store(ScheduleRequest $request, ConflictChecker $conflictChecker, ConflictNotificationService $notifications): RedirectResponse
     {
         $data = $request->scheduleData();
 
@@ -44,6 +45,10 @@ class ScheduleController extends Controller
 
         $schedule = $request->user()->schedules()->create($data);
 
+        if ($conflicts->isNotEmpty()) {
+            $notifications->create($request->user(), $schedule, $conflicts);
+        }
+
         return $this->backToWeek($schedule)->with('status', 'Entry created.');
     }
 
@@ -54,7 +59,7 @@ class ScheduleController extends Controller
         return view('schedules.edit', compact('schedule'));
     }
 
-    public function update(ScheduleRequest $request, ConflictChecker $conflictChecker, Schedule $schedule): RedirectResponse
+    public function update(ScheduleRequest $request, ConflictChecker $conflictChecker, ConflictNotificationService $notifications, Schedule $schedule): RedirectResponse
     {
         Gate::authorize('update', $schedule);
 
@@ -73,6 +78,10 @@ class ScheduleController extends Controller
         }
 
         $schedule->update($data);
+
+        if ($conflicts->isNotEmpty()) {
+            $notifications->create($request->user(), $schedule, $conflicts);
+        }
 
         return $this->backToWeek($schedule)->with('status', 'Entry updated.');
     }

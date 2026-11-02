@@ -15,6 +15,10 @@
             ['label' => 'Recommendations', 'route' => 'recommendations.index'],
             ['label' => 'Settings', 'route' => 'settings.edit'],
         ];
+    if (! auth()->user()->isAdmin()) {
+        $nav[] = ['label' => 'Notifications', 'route' => 'notifications.index', 'active' => 'notifications.*'];
+    }
+    $unreadNotificationCount = auth()->user()->notifications()->where('is_read', false)->count();
 @endphp
 
 <!DOCTYPE html>
@@ -47,7 +51,15 @@
                                'text-gray-600 hover:bg-gray-100' => ! $isActive,
                            ])
                            @if ($isActive) aria-current="page" @endif>
-                            {{ $item['label'] }}
+                            <span class="flex items-center justify-between gap-2">
+                                {{ $item['label'] }}
+                                @if ($item['route'] === 'notifications.index' && $unreadNotificationCount > 0)
+                                    <span class="inline-flex min-w-5 items-center justify-center rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold text-gray-900"
+                                          aria-label="{{ $unreadNotificationCount }} unread notifications">
+                                        {{ $unreadNotificationCount }}
+                                    </span>
+                                @endif
+                            </span>
                         </a>
                     @else
                         <span class="flex items-center justify-between rounded-md px-3 py-2 text-sm text-gray-400" title="Coming soon">
