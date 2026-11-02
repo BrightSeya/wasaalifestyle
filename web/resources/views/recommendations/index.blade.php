@@ -6,6 +6,7 @@
     @else
         <div class="space-y-4">
             @foreach ($recommendations as $recommendation)
+                @php $conflicts = (session('conflicts') ?? [])[$recommendation->id] ?? null; @endphp
                 <div class="rounded-xl bg-white p-4 shadow-sm">
                     <div class="flex items-start justify-between gap-4">
                         <div>
@@ -24,10 +25,26 @@
                         </span>
                     </div>
 
+                    @if ($conflicts)
+                        <div class="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                            <p class="font-semibold">This clashes with your existing schedule:</p>
+                            <ul class="mt-1 list-disc pl-4">
+                                @foreach ($conflicts as $message)
+                                    <li>{{ $message }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
                     <div class="mt-3 flex gap-2">
                         <form method="POST" action="{{ route('recommendations.accept', $recommendation) }}">
                             @csrf
-                            <button type="submit" class="rounded-md bg-gray-900 px-4 py-1.5 text-xs font-semibold text-white">Accept suggestion</button>
+                            @if ($conflicts)
+                                <input type="hidden" name="confirmed" value="1">
+                            @endif
+                            <button type="submit" class="rounded-md bg-gray-900 px-4 py-1.5 text-xs font-semibold text-white">
+                                {{ $conflicts ? 'Confirm anyway' : 'Accept suggestion' }}
+                            </button>
                         </form>
                         <form method="POST" action="{{ route('recommendations.dismiss', $recommendation) }}">
                             @csrf

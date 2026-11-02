@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ScheduleRequest;
 use App\Models\Schedule;
+use App\Services\ConflictChecker;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -26,9 +27,22 @@ class ScheduleController extends Controller
         return view('schedules.create', ['schedule' => new Schedule(['priority' => 'medium'])]);
     }
 
-    public function store(ScheduleRequest $request): RedirectResponse
+    public function store(ScheduleRequest $request, ConflictChecker $conflictChecker): RedirectResponse
     {
-        $schedule = $request->user()->schedules()->create($request->scheduleData());
+        $data = $request->scheduleData();
+
+        $conflicts = $conflictChecker->check(
+            $request->user(),
+            $data['start_datetime'],
+            $data['end_datetime'],
+            $data['priority'],
+        );
+
+        if ($conflicts->isNotEmpty() && ! $request->boolean('confirmed')) {
+            return back()->withInput()->with('conflicts', $conflicts->pluck('message')->all());
+        }
+
+        $schedule = $request->user()->schedules()->create($data);
 
         return $this->backToWeek($schedule)->with('status', 'Entry created.');
     }
@@ -40,11 +54,25 @@ class ScheduleController extends Controller
         return view('schedules.edit', compact('schedule'));
     }
 
-    public function update(ScheduleRequest $request, Schedule $schedule): RedirectResponse
+    public function update(ScheduleRequest $request, ConflictChecker $conflictChecker, Schedule $schedule): RedirectResponse
     {
         Gate::authorize('update', $schedule);
 
-        $schedule->update($request->scheduleData());
+        $data = $request->scheduleData();
+
+        $conflicts = $conflictChecker->check(
+            $request->user(),
+            $data['start_datetime'],
+            $data['end_datetime'],
+            $data['priority'],
+            excludeScheduleId: $schedule->id,
+        );
+
+        if ($conflicts->isNotEmpty() && ! $request->boolean('confirmed')) {
+            return back()->withInput()->with('conflicts', $conflicts->pluck('message')->all());
+        }
+
+        $schedule->update($data);
 
         return $this->backToWeek($schedule)->with('status', 'Entry updated.');
     }

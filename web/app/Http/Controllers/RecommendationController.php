@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Activity;
 use App\Models\Recommendation;
+use App\Services\ConflictChecker;
 use App\Services\RecommendationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,9 +54,21 @@ class RecommendationController extends Controller
         return redirect()->route('recommendations.index')->with('status', 'Recommendations ready.');
     }
 
-    public function accept(Recommendation $recommendation): RedirectResponse
+    public function accept(Request $request, ConflictChecker $conflictChecker, Recommendation $recommendation): RedirectResponse
     {
         Gate::authorize('manage', $recommendation);
+
+        $conflicts = $conflictChecker->check(
+            $recommendation->user,
+            $recommendation->suggested_start,
+            $recommendation->suggested_end,
+            'medium',
+        );
+
+        if ($conflicts->isNotEmpty() && ! $request->boolean('confirmed')) {
+            return redirect()->route('recommendations.index')
+                ->with('conflicts', [$recommendation->id => $conflicts->pluck('message')->all()]);
+        }
 
         $recommendation->user->schedules()->create([
             'title' => $recommendation->activity?->name ?? ucfirst($recommendation->category->value),

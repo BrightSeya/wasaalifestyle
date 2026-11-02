@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\Recommendation;
+use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
@@ -113,5 +114,50 @@ class RecommendationManagementTest extends TestCase
 
         $response->assertForbidden();
         $this->assertSame('pending', $recommendation->fresh()->status);
+    }
+
+    public function test_accepting_a_conflicting_recommendation_requires_confirmation(): void
+    {
+        $user = User::factory()->create();
+        $start = now()->addDay()->setTime(10, 0);
+        Schedule::factory()->for($user)->create([
+            'start_datetime' => $start,
+            'end_datetime' => $start->copy()->addHour(),
+            'is_recurring' => false,
+            'recurrence_rule' => null,
+        ]);
+        $recommendation = Recommendation::factory()->for($user)->create([
+            'suggested_start' => $start,
+            'suggested_end' => $start->copy()->addHour(),
+        ]);
+
+        $response = $this->actingAs($user)->post(route('recommendations.accept', $recommendation));
+
+        $response->assertRedirect(route('recommendations.index'));
+        $response->assertSessionHas('conflicts');
+        $this->assertDatabaseCount('schedules', 1);
+        $this->assertSame('pending', $recommendation->fresh()->status);
+    }
+
+    public function test_confirming_a_conflicting_recommendation_accepts_it_anyway(): void
+    {
+        $user = User::factory()->create();
+        $start = now()->addDay()->setTime(10, 0);
+        Schedule::factory()->for($user)->create([
+            'start_datetime' => $start,
+            'end_datetime' => $start->copy()->addHour(),
+            'is_recurring' => false,
+            'recurrence_rule' => null,
+        ]);
+        $recommendation = Recommendation::factory()->for($user)->create([
+            'suggested_start' => $start,
+            'suggested_end' => $start->copy()->addHour(),
+        ]);
+
+        $response = $this->actingAs($user)->post(route('recommendations.accept', $recommendation), ['confirmed' => '1']);
+
+        $response->assertRedirect(route('recommendations.index'));
+        $this->assertDatabaseCount('schedules', 2);
+        $this->assertSame('accepted', $recommendation->fresh()->status);
     }
 }
