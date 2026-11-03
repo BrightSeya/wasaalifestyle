@@ -11,7 +11,7 @@
     </form>
 
     <form method="POST" action="{{ route('activities.destroy', $activity) }}" class="mt-4 max-w-2xl"
-          onsubmit="return confirm('Delete this activity? Its history will be deleted too.')">
+          data-confirm="Delete this activity? Its history will be deleted too.">
         @csrf
         @method('DELETE')
         <button type="submit" class="text-sm font-semibold text-red-600 hover:underline">Delete activity</button>

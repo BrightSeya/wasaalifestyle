@@ -1,4 +1,8 @@
 <x-layouts.guest title="Log in | WasaaLifestyle" subtitle="Your AI-Powered Lifestyle Scheduler">
+    @if (session('status'))
+        <p role="status" class="mb-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{{ session('status') }}</p>
+    @endif
+
     <form method="POST" action="{{ route('login') }}" class="space-y-4">
         @csrf
 

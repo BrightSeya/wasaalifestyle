@@ -45,6 +45,31 @@
             </form>
         </section>
 
+        <section class="rounded-xl border border-red-200 bg-red-50 p-6 shadow-sm" aria-labelledby="delete-account-heading">
+            <h2 id="delete-account-heading" class="mb-2 text-sm font-semibold text-red-900">Delete Account</h2>
+            <p class="mb-4 text-sm text-red-800">Permanently delete your account, schedules, activities, recommendations, notifications, and connected calendar credentials. This cannot be undone.</p>
+
+            <form method="POST" action="{{ route('settings.account.destroy') }}" class="space-y-4" data-confirm="Permanently delete your account and all associated data? This cannot be undone.">
+                @csrf
+                @method('DELETE')
+
+                <div>
+                    <label for="delete_confirmation" class="block text-xs text-red-900">Type DELETE to confirm</label>
+                    <input id="delete_confirmation" name="confirmation" type="text" required autocomplete="off" class="mt-1 w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none sm:max-w-xs">
+                    @error('confirmation') <p class="mt-1 text-xs text-red-700">{{ $message }}</p> @enderror
+                </div>
+
+                <div>
+                    <label for="delete_current_password" class="block text-xs text-red-900">Current Password</label>
+                    <input id="delete_current_password" name="current_password" type="password" required autocomplete="current-password" class="mt-1 w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none sm:max-w-xs">
+                    @error('current_password') <p class="mt-1 text-xs text-red-700">{{ $message }}</p> @enderror
+                    @error('account') <p role="alert" class="mt-1 text-xs text-red-700">{{ $message }}</p> @enderror
+                </div>
+
+                <button type="submit" class="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">Permanently Delete Account</button>
+            </form>
+        </section>
+
         <section class="rounded-xl bg-white p-6 shadow-sm" aria-labelledby="calendar-connection-heading">
             <h2 id="calendar-connection-heading" class="mb-1 text-sm font-semibold text-gray-700">Google Calendar</h2>
             <p class="mb-4 text-xs text-gray-500">Connect your calendar with read-only event access. Wasaa will not change your Google Calendar.</p>
