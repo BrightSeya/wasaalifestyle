@@ -13,8 +13,8 @@
                             <p class="font-semibold">
                                 {{ $recommendation->activity?->name ?? ucfirst($recommendation->category->value) }}
                             </p>
-                            <p class="mt-1 flex items-center gap-1 text-xs text-gray-500">
-                                <span>&#128197;</span>
+                            <p class="mt-1 flex items-center gap-2 text-xs text-gray-500">
+                                <x-icon name="calendar" class="h-4 w-4 shrink-0 text-amber-800" />
                                 {{ $recommendation->suggested_start->format('l, M j, g:i A') }}
                                 &ndash;
                                 {{ $recommendation->suggested_end->format('g:i A') }}

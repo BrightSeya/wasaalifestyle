@@ -1,15 +1,15 @@
 <x-layouts.app title="Schedule | WasaaLifestyle" heading="{{ $day->isToday() ? 'Today' : $day->format('l') }}, {{ $day->format('M j, Y') }}">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <nav class="flex items-center gap-2 text-sm" aria-label="Day navigation">
-            <a href="{{ route('schedules.day', ['date' => $day->copy()->subDay()->format('Y-m-d')]) }}" class="rounded-md border border-gray-300 bg-white px-3 py-1">&lsaquo; Previous</a>
-            <a href="{{ route('schedules.day') }}" class="rounded-md border border-gray-300 bg-white px-3 py-1">Today</a>
-            <a href="{{ route('schedules.day', ['date' => $day->copy()->addDay()->format('Y-m-d')]) }}" class="rounded-md border border-gray-300 bg-white px-3 py-1">Next &rsaquo;</a>
+            <a href="{{ route('schedules.day', ['date' => $day->copy()->subDay()->format('Y-m-d')]) }}" class="btn-secondary !rounded-lg !px-3 !py-2 !text-xs"><x-icon name="arrow-right" class="h-4 w-4 rotate-180" />Previous</a>
+            <a href="{{ route('schedules.day') }}" class="btn-secondary !rounded-lg !px-3 !py-2 !text-xs">Today</a>
+            <a href="{{ route('schedules.day', ['date' => $day->copy()->addDay()->format('Y-m-d')]) }}" class="btn-secondary !rounded-lg !px-3 !py-2 !text-xs">Next<x-icon name="arrow-right" class="h-4 w-4" /></a>
         </nav>
 
-        <div class="flex items-center gap-3 text-sm">
-            <a href="{{ route('schedules.week', ['date' => $day->format('Y-m-d')]) }}" class="text-gray-600 underline">Week view</a>
-            <a href="{{ route('schedules.google-calendar.import') }}" class="text-gray-600 underline">Import Calendar</a>
-            <a href="{{ route('schedules.create', ['date' => $day->format('Y-m-d')]) }}" class="rounded-full bg-gray-900 px-4 py-2 font-semibold text-white">+ New Task</a>
+        <div class="flex flex-wrap items-center justify-end gap-2 text-sm">
+            <a href="{{ route('schedules.week', ['date' => $day->format('Y-m-d')]) }}" class="rounded-lg px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-white hover:text-gray-950">Week view</a>
+            <a href="{{ route('schedules.google-calendar.import') }}" class="btn-secondary !rounded-lg !px-3 !py-2 !text-xs">Import calendar</a>
+            <a href="{{ route('schedules.create', ['date' => $day->format('Y-m-d')]) }}" class="btn-primary !rounded-lg !px-3 !py-2 !text-xs"><x-icon name="plus" class="h-4 w-4" />New task</a>
         </div>
     </div>
 

@@ -12,7 +12,7 @@ class LoginTest extends TestCase
 
     public function test_login_page_renders(): void
     {
-        $this->get('/login')->assertOk()->assertSee('Log In');
+        $this->get('/login')->assertOk()->assertSee('Log in');
     }
 
     public function test_user_can_log_in_with_correct_password(): void

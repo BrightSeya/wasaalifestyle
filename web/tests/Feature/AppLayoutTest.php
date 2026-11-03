@@ -19,6 +19,9 @@ class AppLayoutTest extends TestCase
             ->assertSeeInOrder(['Dashboard', 'Schedule', 'Activities', 'Recommendations', 'Settings'])
             ->assertSee('Bright Dev')
             ->assertSee('Log out')
+            ->assertSee('data-quote-randomize', false)
+            ->assertSee('data-sidebar-quote', false)
+            ->assertDontSee('Your account')
             ->assertDontSee('User Management');
     }
 

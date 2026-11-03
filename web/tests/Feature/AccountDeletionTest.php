@@ -8,8 +8,10 @@ use App\Models\Recommendation;
 use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class AccountDeletionTest extends TestCase
@@ -21,7 +23,7 @@ class AccountDeletionTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->get(route('settings.edit'))
             ->assertOk()
-            ->assertSee('Delete Account')
+            ->assertSee('Delete account')
             ->assertSee('Type DELETE to confirm')
             ->assertSee('Current Password');
     }
@@ -29,8 +31,11 @@ class AccountDeletionTest extends TestCase
     public function test_user_can_delete_their_account_and_associated_data(): void
     {
         config(['session.driver' => 'database']);
+        Storage::fake('public');
 
         $user = User::factory()->create();
+        $profilePhoto = UploadedFile::fake()->image('profile.png')->store("profile-photos/{$user->id}", 'public');
+        $user->update(['profile_photo_path' => $profilePhoto]);
         $admin = User::factory()->create(['role' => 'admin']);
         $activity = Activity::factory()->create(['user_id' => $user->id]);
         $schedule = Schedule::factory()->create(['user_id' => $user->id]);
@@ -86,7 +91,7 @@ class AccountDeletionTest extends TestCase
         ]);
 
         $this->actingAs($user)->delete(route('settings.account.destroy'), [
-            'current_password' => 'password',
+            'delete_current_password' => 'password',
             'confirmation' => 'DELETE',
         ])
             ->assertRedirect(route('login'))
@@ -94,6 +99,7 @@ class AccountDeletionTest extends TestCase
 
         $this->assertGuest();
         $this->assertDatabaseMissing('users', ['id' => $user->id]);
+        Storage::disk('public')->assertMissing($profilePhoto);
         $this->assertDatabaseMissing('personal_access_tokens', ['id' => $token->accessToken->id]);
         $this->assertDatabaseMissing('password_reset_tokens', ['email' => $user->email]);
         $this->assertDatabaseMissing('sessions', ['id' => 'other-user-session']);
@@ -120,16 +126,40 @@ class AccountDeletionTest extends TestCase
         $user = User::factory()->create();
 
         $this->actingAs($user)->delete(route('settings.account.destroy'), [
-            'current_password' => 'wrong-password',
+            'delete_current_password' => 'wrong-password',
             'confirmation' => 'DELETE',
-        ])->assertSessionHasErrors('current_password');
+        ])->assertSessionHasErrors('delete_current_password');
 
         $this->delete(route('settings.account.destroy'), [
-            'current_password' => 'password',
+            'delete_current_password' => 'password',
             'confirmation' => 'delete',
         ])->assertSessionHasErrors('confirmation');
 
         $this->assertDatabaseHas('users', ['id' => $user->id]);
+    }
+
+    public function test_deletion_password_error_is_only_attached_to_the_deletion_form(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)
+            ->from(route('settings.edit'))
+            ->followingRedirects()
+            ->delete(route('settings.account.destroy'), [
+                'delete_current_password' => 'wrong-password',
+                'confirmation' => 'DELETE',
+            ]);
+
+        $response->assertOk()->assertSee('name="delete_current_password"', false);
+
+        $errors = $response->viewData('errors')->getBag('default');
+        $this->assertTrue($errors->has('delete_current_password'));
+        $this->assertFalse($errors->has('current_password'));
+        $this->assertSame(1, substr_count($response->getContent(), e($errors->first('delete_current_password'))));
+        preg_match_all('/<details\b(?=[^>]*data-settings-disclosure)[^>]*>/', $response->getContent(), $disclosures);
+        $this->assertCount(2, $disclosures[0]);
+        $this->assertDoesNotMatchRegularExpression('/\sopen(?:\s|>)/', $disclosures[0][0]);
+        $this->assertMatchesRegularExpression('/\sopen(?:\s|>)/', $disclosures[0][1]);
     }
 
     public function test_last_active_administrator_cannot_delete_their_account(): void
@@ -137,7 +167,7 @@ class AccountDeletionTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'status' => 'active']);
 
         $this->actingAs($admin)->delete(route('settings.account.destroy'), [
-            'current_password' => 'password',
+            'delete_current_password' => 'password',
             'confirmation' => 'DELETE',
         ])->assertSessionHasErrors('account');
 

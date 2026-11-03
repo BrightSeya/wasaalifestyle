@@ -1,19 +1,19 @@
 <x-layouts.app title="Schedule | WasaaLifestyle" heading="Schedule">
     <div class="mb-4 flex items-center justify-between">
         <p class="text-sm text-gray-600">Upcoming tasks and events</p>
-        <div class="flex gap-2">
-            <a href="{{ route('schedules.google-calendar.import') }}" class="rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold">Import Calendar</a>
-            <a href="{{ route('schedules.create') }}" class="rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white">+ New Task</a>
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ route('schedules.google-calendar.import') }}" class="btn-secondary">Import calendar</a>
+            <a href="{{ route('schedules.create') }}" class="btn-primary"><x-icon name="plus" class="h-4 w-4" />New task</a>
         </div>
     </div>
 
     @if ($schedules->isEmpty())
-        <p class="rounded-xl bg-white p-6 text-sm text-gray-500 shadow-sm">Nothing scheduled yet. Create your first task.</p>
+        <p class="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-500 shadow-sm">Nothing scheduled yet. Create your first task.</p>
     @else
-        <ul class="divide-y divide-gray-100 rounded-xl bg-white shadow-sm">
+        <ul class="divide-y divide-gray-100 rounded-2xl border border-gray-200 bg-white shadow-sm">
             @foreach ($schedules as $schedule)
                 <li>
-                    <a href="{{ route('schedules.edit', $schedule) }}" class="flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50">
+                    <a href="{{ route('schedules.edit', $schedule) }}" class="flex items-center justify-between gap-4 px-4 py-4 transition-colors hover:bg-gray-50">
                         <div>
                             <p class="font-medium">{{ $schedule->title }}</p>
                             <p class="text-xs text-gray-500">
