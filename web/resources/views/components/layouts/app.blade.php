@@ -6,7 +6,7 @@
             ['label' => 'Dashboard', 'route' => 'admin.dashboard'],
             ['label' => 'User Management', 'route' => 'admin.users.index', 'active' => 'admin.users.*'],
             ['label' => 'System Logs', 'route' => 'admin.audit-logs.index', 'active' => 'admin.audit-logs.*'],
-            ['label' => 'Performance', 'route' => null],
+            ['label' => 'Performance', 'route' => 'admin.analytics', 'active' => 'admin.analytics'],
         ]
         : [
             ['label' => 'Dashboard', 'route' => 'dashboard'],

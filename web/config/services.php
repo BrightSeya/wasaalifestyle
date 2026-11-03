@@ -20,6 +20,8 @@ return [
 
     'slot_recommender' => [
         'url' => env('SLOT_RECOMMENDER_URL', 'http://127.0.0.1:5001'),
+        'model_card_path' => env('SLOT_RECOMMENDER_MODEL_CARD_PATH', base_path('../ml/slot-recommender/models/model_card.json')),
+        'baselines_path' => env('SLOT_RECOMMENDER_BASELINES_PATH', base_path('../ml/slot-recommender/models/baselines.json')),
     ],
 
     'ses' => [
