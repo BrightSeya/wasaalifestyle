@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 
 class ProfileController extends Controller
@@ -29,19 +31,55 @@ class ProfileController extends Controller
         $user = $request->user();
         $user->fill($request->safe()->only(['name', 'email']));
 
-        if ($request->filled('new_password')) {
-            $user->password = $request->validated('new_password');
+        if ($request->hasFile('profile_photo')) {
+            $previousPhoto = $user->profile_photo_path;
+            $newPhoto = $request->file('profile_photo')->store("profile-photos/{$user->id}", 'public');
+
+            if (! $newPhoto) {
+                return back()->withErrors(['profile_photo' => 'The photo could not be saved. Please try again.']);
+            }
+
+            $user->profile_photo_path = $newPhoto;
+            $user->save();
+
+            if ($previousPhoto) {
+                Storage::disk('public')->delete($previousPhoto);
+            }
+
+            return redirect()->route('settings.edit')->with('status', 'Profile and photo updated.');
+        }
+
+        $photoToRemove = null;
+        if ($request->boolean('remove_profile_photo') && $user->profile_photo_path) {
+            $photoToRemove = $user->profile_photo_path;
+            $user->profile_photo_path = null;
         }
 
         $user->save();
 
+        if ($photoToRemove) {
+            Storage::disk('public')->delete($photoToRemove);
+        }
+
         return redirect()->route('settings.edit')->with('status', 'Profile updated.');
+    }
+
+    public function updatePassword(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'current_password' => ['required', 'string', 'current_password'],
+            'new_password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()],
+        ]);
+
+        $request->user()->forceFill(['password' => $validated['new_password']])->save();
+
+        return redirect()->route('settings.edit')->with('status', 'Password updated.');
     }
 
     public function destroyAccount(Request $request): RedirectResponse
     {
         $request->validate([
-            'current_password' => ['required', 'string', 'current_password'],
+            'delete_current_password' => ['required', 'string', 'current_password'],
             'confirmation' => ['required', 'string', 'in:DELETE'],
         ]);
 
@@ -81,6 +119,10 @@ class ProfileController extends Controller
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
+        if ($user->profile_photo_path) {
+            Storage::disk('public')->delete($user->profile_photo_path);
+        }
 
         return to_route('login')->with('status', 'Your account and associated data have been deleted.');
     }

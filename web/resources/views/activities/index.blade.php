@@ -6,13 +6,13 @@
     @endif
 
     <div class="mb-4 flex justify-end">
-        <a href="{{ route('activities.create') }}" class="rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white">+ Add Activity</a>
+        <a href="{{ route('activities.create') }}" class="btn-primary"><x-icon name="plus" class="h-4 w-4" />Add activity</a>
     </div>
 
     @if ($activities->isEmpty())
-        <p class="rounded-xl bg-white p-6 text-sm text-gray-500 shadow-sm">No activities yet. Add your first one.</p>
+        <p class="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-500 shadow-sm">No activities yet. Add your first one.</p>
     @else
-        <div class="overflow-x-auto rounded-xl bg-white shadow-sm">
+        <div class="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
             <table class="w-full text-left text-sm">
                 <thead class="border-b border-gray-100 text-xs uppercase text-gray-500">
                     <tr>

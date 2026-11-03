@@ -91,8 +91,8 @@ class DashboardTest extends TestCase
 
         $this->actingAs($user)->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('No scheduled entries in the next seven days.')
-            ->assertSee('No activity history yet. Log an activity to start your progress chart.')
+            ->assertSee('Your week has room to take shape.')
+            ->assertSee('Log an activity to start seeing your progress here.')
             ->assertSee('aria-label="0 pending recommendations"', false)
             ->assertSee('aria-label="0 unread notifications"', false)
             ->assertSee('id="dashboard-completion-chart"', false);
