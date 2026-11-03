@@ -45,6 +45,30 @@
             </form>
         </section>
 
+        <section class="rounded-xl bg-white p-6 shadow-sm" aria-labelledby="calendar-connection-heading">
+            <h2 id="calendar-connection-heading" class="mb-1 text-sm font-semibold text-gray-700">Google Calendar</h2>
+            <p class="mb-4 text-xs text-gray-500">Connect your calendar with read-only event access. Wasaa will not change your Google Calendar.</p>
+
+            @if (session('calendar_error'))
+                <p role="alert" class="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{{ session('calendar_error') }}</p>
+            @endif
+
+            @if ($calendarConnection)
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <p class="text-sm text-green-800">Google Calendar is connected.</p>
+                    <form method="POST" action="{{ route('settings.google-calendar.disconnect') }}">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-50">Disconnect Google Calendar</button>
+                    </form>
+                </div>
+            @elseif ($calendarConfigured)
+                <a href="{{ route('settings.google-calendar.connect') }}" class="inline-flex rounded-md bg-brand px-4 py-2 text-sm font-semibold hover:bg-brand-dark">Connect Google Calendar</a>
+            @else
+                <p role="status" class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">Google Calendar connection is not configured on this server. Contact the administrator.</p>
+            @endif
+        </section>
+
         <form method="POST" action="{{ route('settings.preferences') }}" class="space-y-6">
             @csrf
             @method('PUT')

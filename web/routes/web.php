@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GoogleCalendarConnectionController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PreferencesController;
 use App\Http\Controllers\ProfileController;
@@ -43,6 +44,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/settings', [ProfileController::class, 'edit'])->name('settings.edit');
     Route::put('/settings/profile', [ProfileController::class, 'update'])->name('settings.profile');
     Route::put('/settings/preferences', [PreferencesController::class, 'update'])->name('settings.preferences');
+    Route::get('/settings/google-calendar/connect', [GoogleCalendarConnectionController::class, 'connect'])->name('settings.google-calendar.connect');
+    Route::get('/settings/google-calendar/callback', [GoogleCalendarConnectionController::class, 'callback'])->name('settings.google-calendar.callback');
+    Route::delete('/settings/google-calendar', [GoogleCalendarConnectionController::class, 'disconnect'])->name('settings.google-calendar.disconnect');
 
     Route::get('/recommendations', [RecommendationController::class, 'index'])->name('recommendations.index');
     Route::post('/activities/{activity}/recommendations', [RecommendationController::class, 'store'])->name('recommendations.store');
