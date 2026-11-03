@@ -1,7 +1,10 @@
 <x-layouts.app title="Schedule | WasaaLifestyle" heading="Schedule">
     <div class="mb-4 flex items-center justify-between">
         <p class="text-sm text-gray-600">Upcoming tasks and events</p>
-        <a href="{{ route('schedules.create') }}" class="rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white">+ New Task</a>
+        <div class="flex gap-2">
+            <a href="{{ route('schedules.google-calendar.import') }}" class="rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold">Import Calendar</a>
+            <a href="{{ route('schedules.create') }}" class="rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white">+ New Task</a>
+        </div>
     </div>
 
     @if ($schedules->isEmpty())
@@ -16,6 +19,7 @@
                             <p class="text-xs text-gray-500">
                                 {{ $schedule->start_datetime->format('D, M j') }} &middot;
                                 {{ $schedule->start_datetime->format('g:i A') }} - {{ $schedule->end_datetime->format('g:i A') }}
+                                @if ($schedule->timezone) &middot; Google Calendar source zone {{ $schedule->timezone }} @endif
                                 @if ($schedule->is_recurring) &middot; {{ ucfirst($schedule->recurrence_rule) }} @endif
                             </p>
                         </div>

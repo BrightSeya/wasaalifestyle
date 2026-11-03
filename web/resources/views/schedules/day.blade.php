@@ -8,6 +8,7 @@
 
         <div class="flex items-center gap-3 text-sm">
             <a href="{{ route('schedules.week', ['date' => $day->format('Y-m-d')]) }}" class="text-gray-600 underline">Week view</a>
+            <a href="{{ route('schedules.google-calendar.import') }}" class="text-gray-600 underline">Import Calendar</a>
             <a href="{{ route('schedules.create', ['date' => $day->format('Y-m-d')]) }}" class="rounded-full bg-gray-900 px-4 py-2 font-semibold text-white">+ New Task</a>
         </div>
     </div>
@@ -21,6 +22,7 @@
                     <a href="{{ route('schedules.edit', $entry->schedule) }}" class="flex items-center gap-4 px-4 py-3 hover:bg-gray-50">
                         <span class="w-36 shrink-0 text-sm text-gray-500">
                             {{ $entry->start->format('g:i A') }} - {{ $entry->end->format('g:i A') }}
+                            @if ($entry->schedule->timezone)<span class="block text-[10px]">Google source zone: {{ $entry->schedule->timezone }}</span>@endif
                         </span>
                         <span class="flex-1 font-medium">{{ $entry->schedule->title }}</span>
                         @if ($entry->schedule->is_recurring)

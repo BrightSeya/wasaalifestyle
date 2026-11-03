@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\Category;
+use Database\Factories\ScheduleFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Schedule extends Model
 {
-    /** @use HasFactory<\Database\Factories\ScheduleFactory> */
+    /** @use HasFactory<ScheduleFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -23,6 +24,8 @@ class Schedule extends Model
         'is_recurring',
         'recurrence_rule',
         'status',
+        'google_event_id',
+        'timezone',
     ];
 
     protected function casts(): array

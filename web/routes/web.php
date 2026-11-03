@@ -9,6 +9,7 @@ use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GoogleCalendarConnectionController;
+use App\Http\Controllers\GoogleCalendarImportController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PreferencesController;
 use App\Http\Controllers\ProfileController;
@@ -37,6 +38,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
     Route::get('/schedules/week', ScheduleWeekController::class)->name('schedules.week');
     Route::get('/schedules/day', ScheduleDayController::class)->name('schedules.day');
+    Route::get('/schedules/google-calendar/import', [GoogleCalendarImportController::class, 'index'])->name('schedules.google-calendar.import');
+    Route::post('/schedules/google-calendar/import/preview', [GoogleCalendarImportController::class, 'preview'])->name('schedules.google-calendar.preview');
+    Route::post('/schedules/google-calendar/import/confirm', [GoogleCalendarImportController::class, 'confirm'])->name('schedules.google-calendar.confirm');
     Route::resource('schedules', ScheduleController::class)->except('show');
     Route::resource('activities', ActivityController::class)->except('show');
     Route::post('/activities/{activity}/log', [ActivityController::class, 'log'])->name('activities.log');
