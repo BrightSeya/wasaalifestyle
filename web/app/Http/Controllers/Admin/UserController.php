@@ -85,7 +85,15 @@ class UserController extends Controller
                 return;
             }
 
-            $user->forceFill(['status' => $validated['status']])->save();
+            $attributes = ['status' => $validated['status']];
+            if ($validated['status'] === 'suspended') {
+                $attributes['session_version'] = $user->session_version + 1;
+            }
+
+            $user->forceFill($attributes)->save();
+            if ($validated['status'] === 'suspended') {
+                $user->tokens()->delete();
+            }
             $action = $validated['status'] === 'suspended' ? 'user.suspended' : 'user.reactivated';
             $this->record($request, $user, $action);
         });

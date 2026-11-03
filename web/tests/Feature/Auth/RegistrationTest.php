@@ -34,6 +34,7 @@ class RegistrationTest extends TestCase
         $this->assertSame('user', $user->role);
         $this->assertTrue(Hash::check('secret123', $user->password));
         $this->assertNotSame('secret123', $user->password);
+        $this->assertSame($user->session_version, session('auth_session_version'));
     }
 
     public function test_registration_cannot_set_admin_role(): void

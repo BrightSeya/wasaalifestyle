@@ -20,6 +20,7 @@ class LoginController extends Controller
     {
         $request->authenticate();
         $request->session()->regenerate();
+        $request->session()->put('auth_session_version', $request->user()->session_version);
 
         $home = $request->user()->isAdmin() ? route('admin.dashboard') : route('dashboard');
 
