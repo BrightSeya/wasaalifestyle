@@ -19,11 +19,12 @@ class RegisterController extends Controller
     public function store(RegisterRequest $request): RedirectResponse
     {
         $user = User::create($request->validated());
+        $user->sendEmailVerificationNotification();
 
         Auth::login($user);
         $request->session()->regenerate();
         $request->session()->put('auth_session_version', $user->session_version);
 
-        return redirect()->route('dashboard');
+        return redirect()->route('verification.notice');
     }
 }

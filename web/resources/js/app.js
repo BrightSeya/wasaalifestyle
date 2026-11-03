@@ -5,6 +5,14 @@ document.querySelector('[data-sidebar-toggle]')?.addEventListener('click', () =>
     document.getElementById('sidebar')?.classList.toggle('hidden');
 });
 
+document.querySelectorAll('form[data-confirm]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+        if (!window.confirm(form.dataset.confirm || 'Are you sure?')) {
+            event.preventDefault();
+        }
+    });
+});
+
 document.querySelectorAll('[data-completion-chart]').forEach((chartCanvas) => {
     const days = JSON.parse(chartCanvas.dataset.chart);
 

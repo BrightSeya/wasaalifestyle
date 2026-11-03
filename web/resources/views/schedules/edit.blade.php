@@ -11,7 +11,7 @@
     </form>
 
     <form method="POST" action="{{ route('schedules.destroy', $schedule) }}" class="mt-4 max-w-2xl"
-          onsubmit="return confirm('Delete this entry?')">
+          data-confirm="Delete this entry?">
         @csrf
         @method('DELETE')
         <button type="submit" class="text-sm font-semibold text-red-600 hover:underline">Delete entry</button>
