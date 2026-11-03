@@ -31,6 +31,12 @@ Sign in, open **Settings**, and select **Connect Google Calendar**. Google retur
 
 `APP_KEY` must remain stable while encrypted credentials are stored. If it is changed, existing tokens cannot be decrypted and affected users need to reconnect.
 
+## Importing events
+
+Open **Schedule** and select **Import Calendar**. Choose an inclusive date range of up to 31 days and a category, then review the fetched events before confirming. Imported entries use Medium priority. Wasaa skips already imported event IDs, and a database unique key prevents an event from being imported twice for the same user.
+
+Timed events contained within one local calendar day can be imported. All-day events and timed events that cross into another local calendar day are listed as unsupported. Start and end timestamps are converted to the app time zone for schedule storage; the original Google time zone is kept on each imported schedule. If the Wasaa schedule changes between review and confirmation, the updated conflict summary must be reviewed again. The temporary review payload is encrypted in the session.
+
 ## Official references
 
 - [OAuth 2.0 for Web Server Applications](https://developers.google.com/identity/protocols/oauth2/web-server) — authorization state, offline access, code exchange, and refresh requests.

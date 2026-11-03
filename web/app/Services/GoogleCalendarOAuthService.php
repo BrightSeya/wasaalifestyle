@@ -90,9 +90,9 @@ class GoogleCalendarOAuthService
         return true;
     }
 
-    public function validAccessToken(GoogleCalendarConnection $connection): string
+    public function validAccessToken(GoogleCalendarConnection $connection, bool $forceRefresh = false): string
     {
-        if ($connection->expires_at?->isAfter(now()->addMinute())) {
+        if (! $forceRefresh && $connection->expires_at?->isAfter(now()->addMinute())) {
             return $connection->access_token;
         }
 

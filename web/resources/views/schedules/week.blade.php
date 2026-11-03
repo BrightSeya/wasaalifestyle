@@ -22,6 +22,7 @@
         <div class="flex items-center gap-3 text-sm">
             <a href="{{ route('schedules.day') }}" class="text-gray-600 underline">Day view</a>
             <a href="{{ route('schedules.index') }}" class="text-gray-600 underline">List view</a>
+            <a href="{{ route('schedules.google-calendar.import') }}" class="text-gray-600 underline">Import Calendar</a>
             <a href="{{ route('schedules.create') }}" class="rounded-full bg-gray-900 px-4 py-2 font-semibold text-white">+ New Task</a>
         </div>
     </div>
@@ -62,7 +63,7 @@
                         <a href="{{ route('schedules.edit', $entry->schedule) }}"
                            class="absolute inset-x-1 overflow-hidden rounded-md border px-2 py-1 text-xs hover:shadow {{ $colors[$entry->schedule->category->value] }}"
                            style="top: {{ $minutesFromTop / 60 * $hourHeight }}px; height: {{ max(20, $duration / 60 * $hourHeight) }}px;"
-                           title="{{ $entry->schedule->title }} ({{ $entry->start->format('g:i A') }} - {{ $entry->end->format('g:i A') }})">
+                           title="{{ $entry->schedule->title }} ({{ $entry->start->format('g:i A') }} - {{ $entry->end->format('g:i A') }})@if ($entry->schedule->timezone) — Google source zone: {{ $entry->schedule->timezone }}@endif">
                             <span class="block truncate font-semibold">{{ $entry->schedule->title }}</span>
                             <span class="block truncate text-gray-500">
                                 {{ ucfirst($entry->schedule->category->value) }}
