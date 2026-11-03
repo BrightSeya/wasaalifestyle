@@ -62,13 +62,21 @@ class AdminUserManagementTest extends TestCase
     {
         $admin = User::factory()->admin()->create();
         $user = User::factory()->create();
+        $initialSessionVersion = $user->session_version;
+        $user->createToken('existing-device');
 
         $this->actingAs($admin)->patch(route('admin.users.status', $user), ['status' => 'suspended'])
             ->assertRedirect();
         $this->assertSame('suspended', $user->fresh()->status);
+        $this->assertSame($initialSessionVersion + 1, $user->fresh()->session_version);
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'tokenable_id' => $user->id,
+            'tokenable_type' => User::class,
+        ]);
 
         $this->patch(route('admin.users.status', $user), ['status' => 'active'])->assertRedirect();
         $this->assertSame('active', $user->fresh()->status);
+        $this->assertSame($initialSessionVersion + 1, $user->fresh()->session_version);
 
         $this->patch(route('admin.users.status', $admin), ['status' => 'suspended'])
             ->assertSessionHasErrors('status');
@@ -82,6 +90,35 @@ class AdminUserManagementTest extends TestCase
         $this->post('/login', ['email' => $user->email, 'password' => 'ValidPassword123'])
             ->assertSessionHasErrors('email');
         $this->assertGuest();
+    }
+
+    public function test_old_web_session_is_rejected_after_suspension_even_after_reactivation(): void
+    {
+        $user = User::factory()->create();
+        $oldSessionVersion = $user->session_version;
+
+        $user->forceFill([
+            'status' => 'suspended',
+            'session_version' => $oldSessionVersion + 1,
+        ])->save();
+        $user->forceFill(['status' => 'active'])->save();
+
+        $this->actingAs($user->fresh())
+            ->withSession(['auth_session_version' => $oldSessionVersion])
+            ->get('/dashboard')
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+    }
+
+    public function test_suspended_user_cannot_use_an_existing_sanctum_token(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createToken('existing-device')->plainTextToken;
+        $user->forceFill(['status' => 'suspended'])->save();
+
+        $this->withToken($token)->getJson('/api/user')->assertForbidden();
     }
 
     public function test_admin_can_send_reset_and_user_can_complete_secure_password_reset(): void

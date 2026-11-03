@@ -22,6 +22,7 @@ class RegisterController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        $request->session()->put('auth_session_version', $user->session_version);
 
         return redirect()->route('dashboard');
     }

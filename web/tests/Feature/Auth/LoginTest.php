@@ -23,6 +23,7 @@ class LoginTest extends TestCase
             ->assertRedirect(route('dashboard'));
 
         $this->assertAuthenticatedAs($user);
+        $this->assertSame($user->session_version, session('auth_session_version'));
     }
 
     public function test_admin_is_sent_to_admin_dashboard(): void
