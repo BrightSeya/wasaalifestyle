@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminAuditLog;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -43,14 +45,25 @@ class UserController extends Controller
             'role' => ['required', Rule::in(['user', 'admin'])],
         ]);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Str::random(64),
-        ]);
-        $user->role = $validated['role'];
-        $user->save();
+        $user = DB::transaction(function () use ($request, $validated) {
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Str::random(64),
+            ]);
+            $user->role = $validated['role'];
+            $user->save();
 
+            AdminAuditLog::create([
+                'administrator_id' => $request->user()->id,
+                'affected_user_id' => $user->id,
+                'action' => 'user.created',
+            ]);
+
+            return $user;
+        });
+
+        $this->record($request, $user, 'user.password_reset_requested');
         Password::sendResetLink(['email' => $user->email]);
 
         return to_route('admin.users.index')
@@ -67,15 +80,33 @@ class UserController extends Controller
             return back()->withErrors(['status' => 'You cannot suspend your own administrator account.']);
         }
 
-        $user->forceFill(['status' => $validated['status']])->save();
+        DB::transaction(function () use ($request, $user, $validated) {
+            if ($user->status === $validated['status']) {
+                return;
+            }
+
+            $user->forceFill(['status' => $validated['status']])->save();
+            $action = $validated['status'] === 'suspended' ? 'user.suspended' : 'user.reactivated';
+            $this->record($request, $user, $action);
+        });
 
         return back()->with('status', "{$user->name}'s account is now {$validated['status']}.");
     }
 
-    public function sendPasswordReset(User $user): RedirectResponse
+    public function sendPasswordReset(Request $request, User $user): RedirectResponse
     {
+        $this->record($request, $user, 'user.password_reset_requested');
         $status = Password::sendResetLink(['email' => $user->email]);
 
         return back()->with('status', __($status));
+    }
+
+    private function record(Request $request, User $user, string $action): void
+    {
+        AdminAuditLog::create([
+            'administrator_id' => $request->user()->id,
+            'affected_user_id' => $user->id,
+            'action' => $action,
+        ]);
     }
 }
