@@ -21,6 +21,8 @@ class AppLayoutTest extends TestCase
             ->assertSee('Log out')
             ->assertSee('data-quote-randomize', false)
             ->assertSee('data-sidebar-quote', false)
+            ->assertSee('data-theme-toggle', false)
+            ->assertSee('theme.js')
             ->assertDontSee('Your account')
             ->assertDontSee('User Management');
     }

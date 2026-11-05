@@ -1,11 +1,12 @@
 <!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f7f6f3">
     <meta name="description" content="Plan a week that fits your routines, availability, and real-life commitments with WasaaLifestyle.">
     <title>WasaaLifestyle | Make room for what matters</title>
+    <script src="{{ asset('theme.js') }}"></script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="overflow-x-hidden bg-canvas font-sans text-gray-900 antialiased">
@@ -17,7 +18,7 @@
             <span class="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-300 via-brand to-orange-400 text-amber-950 shadow-sm">
                 <svg aria-hidden="true" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h16M6.5 14a5.5 5.5 0 0 1 11 0M12 3v2M4.9 6l1.5 1.5M19.1 6l-1.5 1.5"/><path d="M8.5 17v2m7-2v2"/></svg>
             </span>
-            <span class="text-base sm:text-lg">WasaaLifestyle</span>
+            <span class="text-base sm:text-lg">Wasaa<span class="hidden sm:inline">Lifestyle</span></span>
         </a>
 
         <nav class="hidden items-center gap-7 text-sm font-medium text-gray-600 md:flex" aria-label="Page">
@@ -26,6 +27,7 @@
         </nav>
 
         <div class="flex items-center gap-2 sm:gap-3">
+            <x-theme-toggle />
             @auth
                 <a href="{{ route(auth()->user()->isAdmin() ? 'admin.dashboard' : 'dashboard') }}" class="btn-secondary !px-3 !py-2 text-xs sm:!px-4 sm:text-sm">Dashboard</a>
             @else

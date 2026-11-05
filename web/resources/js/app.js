@@ -1,6 +1,32 @@
 import './bootstrap';
 import { Chart } from 'chart.js/auto';
 
+const themeToggleButtons = document.querySelectorAll('[data-theme-toggle]');
+themeToggleButtons.forEach((button) => {
+    const updateThemeLabel = () => {
+        const isDark = document.documentElement.dataset.theme === 'dark';
+        const label = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+        button.setAttribute('aria-label', label);
+        button.setAttribute('title', label);
+    };
+
+    updateThemeLabel();
+    button.addEventListener('click', () => {
+        const nextTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.classList.add('theme-transition');
+        document.documentElement.dataset.theme = nextTheme;
+        const themeColor = document.querySelector('meta[name="theme-color"]');
+        if (themeColor) themeColor.content = nextTheme === 'dark' ? '#090909' : '#f7f6f3';
+        try {
+            localStorage.setItem('wasaa-theme', nextTheme);
+        } catch {
+            // The current page theme still changes when storage is unavailable.
+        }
+        updateThemeLabel();
+        window.setTimeout(() => document.documentElement.classList.remove('theme-transition'), 350);
+    });
+});
+
 const sidebar = document.getElementById('sidebar');
 const sidebarToggle = document.querySelector('[data-sidebar-toggle]');
 const sidebarBackdrop = document.querySelector('[data-sidebar-backdrop]');

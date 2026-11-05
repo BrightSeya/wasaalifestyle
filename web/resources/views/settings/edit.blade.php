@@ -22,7 +22,7 @@
                 @csrf
                 @method('PUT')
 
-                <div class="flex flex-col gap-4 rounded-2xl bg-[#faf9f6] p-4 sm:flex-row sm:items-center sm:gap-5">
+                <div class="profile-photo-panel flex flex-col gap-4 rounded-2xl bg-[#faf9f6] p-4 sm:flex-row sm:items-center sm:gap-5">
                     <div class="relative h-[4.5rem] w-[4.5rem] shrink-0">
                         @if ($settingsUser->profile_photo_path)
                             <img data-avatar-preview src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($settingsUser->profile_photo_path) }}" alt="Profile photo preview" class="h-full w-full rounded-2xl object-cover ring-1 ring-black/5">
@@ -31,7 +31,7 @@
                             <img data-avatar-preview alt="Profile photo preview" class="hidden h-full w-full rounded-2xl object-cover ring-1 ring-black/5">
                             <span data-avatar-fallback class="flex h-full w-full items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-orange-200 text-lg font-bold text-amber-950">{{ $settingsInitials }}</span>
                         @endif
-                        <span class="absolute -bottom-2 -right-2 flex h-7 w-7 items-center justify-center rounded-xl border-2 border-[#faf9f6] bg-gray-900 text-white"><x-icon name="camera" class="h-3.5 w-3.5" /></span>
+                        <span class="profile-photo-badge absolute -bottom-2 -right-2 flex h-7 w-7 items-center justify-center rounded-xl border-2 border-[#faf9f6] bg-gray-900 text-white"><x-icon name="camera" class="h-3.5 w-3.5" /></span>
                     </div>
                     <div class="min-w-0 flex-1">
                         <label for="profile_photo" class="block text-sm font-semibold text-gray-900">Profile photo</label>

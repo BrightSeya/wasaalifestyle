@@ -33,12 +33,13 @@
 @endphp
 
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f7f6f3">
     <title>{{ $title }}</title>
+    <script src="{{ asset('theme.js') }}"></script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="app-shell min-h-screen font-sans text-gray-900 antialiased">
@@ -86,6 +87,8 @@
                 <div class="min-w-0"><p class="hidden text-[10px] font-semibold uppercase tracking-[.16em] text-amber-800 sm:block">{{ $user->isAdmin() ? 'Wasaa · workspace' : 'Your week, in view' }}</p><h1 class="truncate text-base font-semibold tracking-tight text-gray-950 sm:text-xl">{{ $heading ?? $title }}</h1></div>
             </div>
 
+            <div class="flex shrink-0 items-center gap-2">
+            <x-theme-toggle />
             <details class="account-menu relative shrink-0" data-account-menu>
                 <summary class="flex cursor-pointer list-none items-center gap-2 rounded-2xl border border-white/80 bg-white/70 py-1.5 pl-1.5 pr-2.5 shadow-sm backdrop-blur-xl transition hover:border-amber-200 hover:bg-white sm:gap-3 sm:pl-2">
                     @if ($user->profile_photo_path)
@@ -102,6 +105,7 @@
                     <form method="POST" action="{{ route('logout') }}">@csrf<button type="submit" class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-950"><x-icon name="logout" class="h-4 w-4 text-gray-400" />Log out</button></form>
                 </div>
             </details>
+            </div>
         </header>
 
         <main class="app-main min-h-[calc(100vh-4.5rem)] px-4 py-6 sm:px-7 sm:py-8 lg:px-10">
