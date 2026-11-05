@@ -17,6 +17,8 @@ class LandingPageTest extends TestCase
             ->assertSee('Make room for')
             ->assertSee('landing-header sticky top-0', false)
             ->assertSee('min-h-24', false)
+            ->assertSee('data-theme-toggle', false)
+            ->assertSee('theme.js')
             ->assertSee('Your plan, at a glance')
             ->assertSee('Spot conflicts early')
             ->assertSee('Illustrative preview')

@@ -25,6 +25,8 @@ class ProfileSettingsTest extends TestCase
         $response = $this->actingAs($user)->get('/settings')
             ->assertOk()
             ->assertSee('Bright Dev')
+            ->assertSee('profile-photo-panel', false)
+            ->assertSee('name="profile_photo"', false)
             ->assertSee('value="9"', false)  // default peak start hour
             ->assertSee('value="17"', false) // default peak end hour
             ->assertSeeInOrder(['Change password', 'Google Calendar', 'Weekly Availability Windows', 'Delete account']);

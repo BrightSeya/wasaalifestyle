@@ -1,12 +1,13 @@
 @props(['title' => 'WasaaLifestyle', 'heading' => 'Welcome to Wasaa', 'subtitle' => 'Plan your week with more intention.'])
 
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f7f6f3">
     <title>{{ $title }}</title>
+    <script src="{{ asset('theme.js') }}"></script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-canvas font-sans text-gray-900 antialiased">
@@ -51,7 +52,10 @@
                     <span class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-gray-900"><svg aria-hidden="true" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h16M6.5 14a5.5 5.5 0 0 1 11 0M12 3v2M4.9 6l1.5 1.5M19.1 6l-1.5 1.5"/><path d="M8.5 17v2m7-2v2"/></svg></span>
                     WasaaLifestyle
                 </a>
-                <a href="{{ route('home') }}" class="rounded-lg px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-white hover:text-gray-900 sm:text-sm">Back to home</a>
+                <div class="flex items-center gap-2">
+                    <x-theme-toggle />
+                    <a href="{{ route('home') }}" class="rounded-lg px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-white hover:text-gray-900 sm:text-sm">Back to home</a>
+                </div>
             </header>
 
             <div class="my-auto flex w-full justify-center py-10">
