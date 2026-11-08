@@ -9,20 +9,17 @@ for tasks and lifestyle activities, and a rule-based engine detects scheduling c
 - `ml/no-show/` - Python service for missed-activity prediction (planned)
 - `docs/` - project documentation ([index](docs/README.md))
 
+## Getting started
+- Laravel setup: [`web/README.md`](web/README.md)
+- Complete architecture, integration, configuration, testing, and model limitations: [`docs/system-architecture.md`](docs/system-architecture.md)
+- End-user guide: [`docs/user-manual.md`](docs/user-manual.md)
+
 ## Methodology
 - Web application: Agile (Scrum-inspired sprints)
 - Machine learning: CRISP-DM
 
 ## Author
 Bright Seya Ndinya (164994), Strathmore University. Supervisor: Dr. Deperias Kerre.
-
-# OS / editors
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-
-# Environment files
 .env
 .env.*
 !.env.example
