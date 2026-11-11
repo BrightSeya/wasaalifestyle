@@ -5,7 +5,7 @@ WasaaLifestyle helps you plan tasks and routines around your schedule, review su
 ## Create an account or sign in
 
 1. Open the WasaaLifestyle website.
-2. Select **Create an account** and enter your name, email address, password, and password confirmation, or select **Log in** if you already have an account.
+2. Select **Create an account** and enter your name, email address, password, and password confirmation, or select **Log in** if you already have an account. If you forgot your password, choose **Forgot password?** on the login page and submit your account email. If it matches an account, Wasaa sends a time-limited reset link; the confirmation message is the same whether or not the email is registered.
 3. After registration, check your email and follow the verification link. You must verify your email before using your schedule and account pages.
 4. If the verification message does not arrive, check your spam folder. On the **Verify your email** page, select **Resend verification email**. Contact your administrator if it still does not arrive.
 
@@ -84,7 +84,7 @@ In **Personal details**, update your name or email address and select **Save pro
 
 ### Password
 
-Open **Change password**, enter your current password, enter a new password, and confirm it. New passwords must be at least eight characters and include letters and numbers. Select **Update Password**. If you have forgotten your password, contact your administrator for a reset link; there is currently no self-service reset-request form on the login page.
+Open **Change password**, enter your current password, enter a new password, and confirm it. New passwords must be at least eight characters and include letters and numbers. Select **Update Password**. If you have forgotten your password, use **Forgot password?** on the login page and follow the reset link sent to your account email.
 
 ### Availability and preferences
 
@@ -127,7 +127,7 @@ To proceed, open **Delete account**, type `DELETE`, enter your current password,
 | Problem | What to do |
 | --- | --- |
 | Login is rejected | Check your email and password. If your email is not verified, use the verification page. If the account is suspended, contact the administrator. |
-| Forgot your password | Contact the administrator to request a reset link. |
+| Forgot your password | Choose **Forgot password?** on the login page and check the inbox for the address you submitted, including the spam folder. Reset links expire; request another link if needed. |
 | Verification or notification email is missing | Check spam, use **Resend verification email** when available, and contact the administrator if it still does not arrive. Email delivery depends on server configuration. |
 | A task overlaps another entry | Review the listed conflict, change the time, or submit again only if you intend to keep the overlap. |
 | No recommendations appear | Open **Activities** and select **Get recommendation**. If recommendations are temporarily unavailable, try later or schedule manually. |
