@@ -1,6 +1,6 @@
 # System Architecture and Technical Setup
 
-This document describes the repository as implemented: its Laravel application, Python recommendation service, local development setup, data flow, test commands, and known model and deployment limitations. It contains configuration variable names only; never put credentials or real user data in documentation.
+This document describes the repository as implemented: its Laravel application, Python recommendation service, local development setup, data flow, test commands, and known model and deployment limitations. For the current Azure VM deployment, see the [Azure VM deployment runbook](azure-vm-deployment.md). It contains configuration variable names only; never put credentials or real user data in documentation.
 
 ## Architecture
 

@@ -1,0 +1,16 @@
+[Unit]
+Description=Wasaa Lifestyle slot recommender
+After=network.target
+
+[Service]
+Type=simple
+User=azureuser
+Group=www-data
+WorkingDirectory=/var/www/wasaa/ml/slot-recommender
+ExecStart=/var/www/wasaa/ml/slot-recommender/.venv/bin/gunicorn --workers 1 --bind 127.0.0.1:5001 app.api:app
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
