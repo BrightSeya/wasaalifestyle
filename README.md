@@ -12,6 +12,7 @@ for tasks and lifestyle activities, and a rule-based engine detects scheduling c
 ## Getting started
 - Laravel setup: [`web/README.md`](web/README.md)
 - Complete architecture, integration, configuration, testing, and model limitations: [`docs/system-architecture.md`](docs/system-architecture.md)
+- Azure VM deployment: [`docs/azure-vm-deployment.md`](docs/azure-vm-deployment.md)
 - End-user guide: [`docs/user-manual.md`](docs/user-manual.md)
 
 ## Methodology
