@@ -1,7 +1,7 @@
 # WasaaLifestyle UAT and SUS Test Plan
 
 **Issue:** #90 — `test: run UAT and measure SUS`  
-**Status:** Ready to conduct; no participant results have been collected.
+**Status:** User reports that UAT/SUS sessions have been conducted. An anonymized summary is recorded in [`final-evaluation-report.md`](final-evaluation-report.md); test metadata, the UAT case discrepancy, and raw SUS item responses remain to be reconciled.
 
 ## Purpose
 
