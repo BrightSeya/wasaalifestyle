@@ -41,10 +41,17 @@ jobs:
           if git ls-files | grep -q 'PROJECT_LOG.md'; then
             echo "::error::PROJECT_LOG.md must stay local"; exit 1
           fi
+          private_artifacts=$(git ls-files | grep -E '^(ml/no-show/(data|models|reports)/|web/storage/app/private/no-show/|ml/slot-recommender/data/(raw|processed)/|ml/slot-recommender/models/.*\.joblib$)' || true)
+          if [ -n "$private_artifacts" ]; then
+            echo "::error::Private data or model artifacts must not be committed: $private_artifacts"; exit 1
+          fi
           big=$(git ls-files -z | xargs -0 -I{} find {} -size +50M)
           if [ -n "$big" ]; then
             echo "::error::Files over 50MB: $big"; exit 1
           fi
+          grep -q -- '--bind 127.0.0.1:5001' deploy/azure/wasaa-recommender.service
+          grep -q 'Environment=WASAA_RISK_MODEL_ENABLED=false' deploy/azure/wasaa-recommender.service
+          grep -q '^COMMITMENT_RISK_ENABLED=false$' web/.env.example
 
   laravel:
     name: Laravel tests
@@ -93,3 +100,6 @@ jobs:
 
       - name: Run tests
         run: pytest
+
+      - name: Run no-show pipeline tests
+        run: pytest ../no-show/tests

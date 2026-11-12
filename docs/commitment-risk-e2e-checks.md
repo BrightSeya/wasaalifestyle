@@ -24,7 +24,7 @@ Python environment used: Python 3.11.9, pytest 9.1.1, Windows. The API suite inc
 
 Executed on 2026-11-12: Laravel reported **230 passed, 4 skipped (979 assertions)**; Python recommender/API reported **107 passed**; no-show pipeline reported **11 passed**. The four Laravel skips are live slot-recommender integration tests because the Flask service was not running. Results use synthetic fixtures and test doubles.
 
-**Commit under test:** `26761d3` is the `origin/main` base. The issue #116 changes were tested in the uncommitted working tree on branch `116-test-commitment-risk-e2e`; record the PR head SHA after creating the local commit.
+**Commit under test:** PR #128 head `a01e9677f9c717a7441d0dffb7a3ab5c6ddd7bac`, merged as `75a2ed1fad19f989c1de8bedb0e3deb24f33baf9`. The tests were run against the issue #116 changes based on `26761d3`.
 
 The Flask endpoint uses a synthetic test model in its test client, while Laravel uses HTTP fakes. No trained Wasaa commitment-risk artifact is available or enabled, and no live Python-to-Laravel request or real-user prediction was performed.
 
