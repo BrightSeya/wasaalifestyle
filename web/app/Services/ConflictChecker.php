@@ -27,6 +27,7 @@ class ConflictChecker
 
         return $this->occurrences->between($user, $from, $to)
             ->filter(fn (Occurrence $occurrence) => $occurrence->schedule->id !== $excludeScheduleId)
+            ->reject(fn (Occurrence $occurrence) => $occurrence->outcome === 'cancelled')
             ->filter(fn (Occurrence $occurrence) => $occurrence->start->lt($end) && $occurrence->end->gt($start))
             ->map(function (Occurrence $occurrence) use ($priority) {
                 $isPriorityClash = self::PRIORITY_RANK[$priority] < self::PRIORITY_RANK[$occurrence->schedule->priority];

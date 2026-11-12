@@ -47,4 +47,9 @@ class Schedule extends Model
     {
         return $this->hasMany(Notification::class);
     }
+
+    public function occurrenceOutcomes(): HasMany
+    {
+        return $this->hasMany(ScheduleOccurrenceOutcome::class);
+    }
 }

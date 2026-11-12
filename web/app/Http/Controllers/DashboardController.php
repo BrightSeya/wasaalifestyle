@@ -22,6 +22,7 @@ class DashboardController extends Controller
             $today,
             $today->copy()->addDays(self::OVERVIEW_DAYS),
         );
+        $upcomingEntries = $upcomingEntries->reject(fn ($entry) => $entry->outcome === 'cancelled')->values();
         $recentLogs = $user->activityLogs()
             ->where('scheduled_for', '>=', $today->copy()->subDays(self::OVERVIEW_DAYS - 1))
             ->where('scheduled_for', '<', $today->copy()->addDay())

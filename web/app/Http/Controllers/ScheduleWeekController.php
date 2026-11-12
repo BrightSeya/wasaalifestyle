@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ScheduleOccurrenceOutcome;
 use App\Services\ScheduleOccurrences;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -19,6 +20,13 @@ class ScheduleWeekController extends Controller
         $weekEnd = $weekStart->copy()->addWeek();
 
         $entries = $occurrences->between($request->user(), $weekStart, $weekEnd);
+        $scheduleIds = $entries->map(fn ($entry) => $entry->schedule->id)->unique();
+        $occurrenceOutcomes = ScheduleOccurrenceOutcome::query()
+            ->whereIn('schedule_id', $scheduleIds)
+            ->where('occurrence_start', '>=', $weekStart)
+            ->where('occurrence_start', '<', $weekEnd)
+            ->get()
+            ->keyBy(fn (ScheduleOccurrenceOutcome $outcome) => $outcome->schedule_id.'|'.$outcome->occurrence_start->format('Y-m-d H:i:s'));
 
         $days = collect(range(0, 6))->map(fn (int $offset) => $weekStart->copy()->addDays($offset));
         $entriesByDay = $entries->groupBy(fn ($entry) => $entry->start->format('Y-m-d'));
@@ -34,6 +42,7 @@ class ScheduleWeekController extends Controller
             'weekStart' => $weekStart,
             'days' => $days,
             'entriesByDay' => $entriesByDay,
+            'occurrenceOutcomes' => $occurrenceOutcomes,
             'startHour' => $startHour,
             'endHour' => $endHour,
         ]);
