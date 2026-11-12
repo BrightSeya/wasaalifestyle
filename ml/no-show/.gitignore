@@ -1,0 +1,7 @@
+# Keep user exports and generated data local; only synthetic test fixtures belong in Git.
+/data/raw/
+/data/private/
+/data/processed/
+/reports/private/
+*.real.csv
+*.real.json

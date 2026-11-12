@@ -56,6 +56,7 @@ class ScheduleOccurrenceOutcomeTest extends TestCase
             $this->assertDatabaseHas('schedule_occurrence_outcomes', [
                 'schedule_id' => $schedule->id,
                 'occurrence_start' => '2026-11-11 10:00:00',
+                'occurrence_end' => '2026-11-11 11:00:00',
                 'outcome' => $outcome,
             ]);
         }
