@@ -43,6 +43,7 @@ class ScheduleOccurrenceOutcomeController extends Controller
         $schedule->occurrenceOutcomes()->updateOrCreate(
             ['occurrence_start' => $occurrence->start],
             [
+                'occurrence_end' => $occurrence->end,
                 'outcome' => $data['outcome'],
                 'recorded_at' => now(),
             ],

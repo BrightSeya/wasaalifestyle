@@ -24,3 +24,4 @@ venv/
 ml/**/data/raw/
 ml/**/data/processed/
 ml/**/models/*.joblib
+web/storage/app/private/no-show/

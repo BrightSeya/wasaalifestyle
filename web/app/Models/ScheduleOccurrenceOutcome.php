@@ -13,6 +13,7 @@ class ScheduleOccurrenceOutcome extends Model
     protected $fillable = [
         'schedule_id',
         'occurrence_start',
+        'occurrence_end',
         'outcome',
         'recorded_at',
     ];
@@ -21,6 +22,7 @@ class ScheduleOccurrenceOutcome extends Model
     {
         return [
             'occurrence_start' => 'datetime',
+            'occurrence_end' => 'datetime',
             'recorded_at' => 'datetime',
         ];
     }
