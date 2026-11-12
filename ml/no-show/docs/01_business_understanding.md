@@ -1,6 +1,6 @@
 # Sprint 8: Commitment-risk prediction — business understanding
 
-**Status:** Research draft for review. The label policy and use of real user history require project-owner/supervisor approval before implementation trains or serves a user-facing model.
+**Status:** The project owner approved the product/data policy on 12 November 2026. Institutional or supervisor approval for any user study or research use of user history must still be confirmed before collection or evaluation.
 
 ## 1. Purpose and scope
 
@@ -23,50 +23,49 @@ The findings below were checked against the current application code and migrati
 
 Relevant Wasaa source files: `web/database/migrations/2026_09_29_145543_create_schedules_table.php`, `web/database/migrations/2026_09_29_145552_create_activity_logs_table.php`, `web/app/Http/Requests/ScheduleRequest.php`, `web/app/Http/Controllers/ScheduleController.php`, and `web/app/Http/Controllers/ActivityController.php`.
 
-## 3. Proposed prediction unit and label policy
+## 3. Approved prediction unit and label policy
 
 ### Prediction unit
 
 One future occurrence of a user's schedule entry. For a recurring entry, each generated occurrence is treated independently. Only future occurrences that have not already been completed, cancelled, or otherwise closed are eligible.
 
-### Proposed outcome labels
+### Approved outcome labels
 
-| Recorded outcome for an occurrence | Proposed model treatment |
+| Recorded outcome for an occurrence | Approved model treatment |
 |---|---|
 | User explicitly records `completed` after the occurrence | Negative class: the commitment was completed. |
 | User explicitly records `missed` after the occurrence | Positive class: the commitment was missed. |
-| User records `skipped`, cancels, deletes, or changes the occurrence before it is due | Exclude from the binary training label unless the project owner approves a separate, precise definition. |
+| User records `skipped`, cancels, deletes, or changes the occurrence before it is due | Exclude from the binary training label. |
 | No explicit outcome is recorded | Unknown; exclude from training and do not count as a miss. |
 
-The positive label is therefore an explicit, user-reported outcome, not an independent observation of the user's behavior. The wording shown to users and the report should reflect that limitation.
+The positive label is an explicit, user-reported outcome, not an independent observation of the user's behavior. The wording shown to users and the report must reflect that limitation.
 
 ### Required data-capture decision
 
-Before there can be reliable schedule-occurrence labels, the product needs an explicit outcome-recording flow for each occurrence. The current `activity_logs` table cannot provide that link because it references `activities`, not `schedules`, and a recurring schedule master can have many occurrences. The implementation issue should record occurrence-level outcomes with a stable link to the schedule and occurrence time, while preserving the distinction between completed, missed, skipped/cancelled, and unknown. The project owner must approve the exact schema and interaction before that work begins.
+Before there can be reliable schedule-occurrence labels, the product needs an explicit outcome-recording flow for each occurrence. The current `activity_logs` table cannot provide that link because it references `activities`, not `schedules`, and a recurring schedule master can have many occurrences. Add a dedicated occurrence-outcome record with a stable schedule link, occurrence start, outcome (`completed`, `missed`, or `skipped`), and record time; enforce one outcome per schedule occurrence. Keep unknown and cancelled/deleted occurrences distinct from the binary model labels. This approved outcome-capture work must be completed before preparing a Wasaa schedule-history training set.
 
-Existing `ActivityLog` history may be considered as an additional historical-behavior feature only after the team defines a valid mapping to schedule categories and time periods. Do not join records just because their dates or categories happen to match.
+Do not use existing `ActivityLog` rows as labels or model features in the initial version. They describe different Activity records and are not linked to Schedule occurrences. The initial model's user-history features must come only from that user's earlier explicitly recorded schedule-occurrence outcomes.
 
-## 4. Proposed inference features and privacy boundary
+## 4. Approved inference features and privacy boundary
 
-Candidate features known before the occurrence include category, scheduled hour/day, duration, lead time, priority, schedule density, and counts/rates derived only from the same user's earlier explicitly labeled occurrences. The exact feature set must be justified by the training data and recorded in the model card.
+The approved candidate features known before the occurrence are category, scheduled hour/day, duration, lead time, priority, schedule density, and counts/rates derived only from the same user's earlier explicitly labeled schedule occurrences. Retain only features supported by the prepared training data and record the final set in the model card.
 
 The inference request should contain derived feature values only. It should not contain the user's name, email address, schedule title, description, free-text notes, or raw activity history. The model service should not query the Laravel database. Laravel remains responsible for authentication, ownership checks, selecting eligible occurrences, and storing a minimal assessment result.
 
-For each occurrence, all history-derived values must be calculated using records strictly earlier than the prediction time. No outcome, completion timestamp, later activity, or post-event state may enter the features. The team should define retention and deletion behavior for stored assessments alongside the data-capture design.
+For each occurrence, all history-derived values must be calculated using records strictly earlier than the prediction time. No outcome, completion timestamp, later activity, or post-event state may enter the features. Outcome records follow the related schedule's retention and are deleted when that schedule or user account is deleted. Do not export raw user history outside the application database or commit it to Git.
 
-## 5. User-facing safeguards
+## 5. Approved user-facing safeguards
 
-Proposed first release behavior, pending approval:
-
-- Prediction alerts are opt-in and delivered in the application only.
+- Prediction alerts are opt-in, off by default, and delivered in the application only.
+- The initial alert is scheduled one hour before the eligible occurrence; the alert lead time can be revisited after user evaluation.
 - The feature remains disabled when model/data readiness criteria are not met or the model service is unavailable.
 - Alerts use cautious language and explain that the score is an estimate, not a certainty.
-- Users can dismiss alerts; the same occurrence should not repeatedly generate the same alert.
+- Users can dismiss alerts; generate at most one alert per occurrence for an assessment.
 - Predictions do not change, cancel, or mark schedule entries automatically.
 - A suggested alternative time is a separate user action and must pass Wasaa's existing conflict checks at confirmation time.
 - Do not place raw personal data or prediction payloads in application or model-service logs.
 
-The project owner/supervisor must confirm opt-in defaults, the minimum history rule, alert timing, threshold/alert-rate policy, and retention period before these behaviors are treated as final requirements.
+The project owner approved these safeguards on 12 November 2026. Do not invent a numeric minimum-history count or probability threshold now: set both from the prepared data and validation results, report the alert volume and precision, and keep predictions disabled until those gates are met. Confirm any institutional review or consent requirements before collecting or evaluating user outcomes.
 
 ## 6. Evidence and go/no-go criteria for model work
 
@@ -81,15 +80,24 @@ The model/data issue should not claim readiness until the team can report:
 
 If there are not enough approved Wasaa outcomes, synthetic data may be used to test the pipeline and interface contracts only. In that case, keep real-user predictions and alerts disabled, clearly label all synthetic results, and collect properly consented outcomes before making a user-performance claim. Do not choose an arbitrary minimum record count or alert threshold; justify those choices using the dataset, validation results, and project-owner approval.
 
-## 7. Decisions requiring approval
+## 7. Decisions and remaining gate
 
-- [ ] Confirm the prediction unit is an individual schedule occurrence.
-- [ ] Approve explicit `completed` versus `missed` as the binary outcome and exclude skipped/cancelled/unknown records.
-- [ ] Approve adding occurrence-level schedule outcome capture before model training on Wasaa history.
-- [ ] Approve whether existing Activity logs may be used as supplemental features, and define a valid mapping if so.
-- [ ] Approve opt-in behavior, minimum-history policy, alert timing/threshold policy, and assessment retention.
-- [ ] Confirm what consent or institutional review is required before collecting or evaluating user history.
+| Decision | Approved policy |
+|---|---|
+| Prediction unit | One individual schedule occurrence; each recurrence is treated separately. |
+| Positive/negative labels | Explicit `missed` / explicit `completed`, recorded after the occurrence. |
+| Excluded outcomes | Skipped, cancelled, deleted, and unreported occurrences are excluded; missing records are not misses. |
+| Outcome capture | Add an occurrence-level record linked to schedule and occurrence time before preparing Wasaa training data. |
+| Existing `ActivityLog` data | Not used in the initial model because it is not linked to schedules. |
+| Inference features | Approved pre-event schedule context plus only that user's earlier explicit schedule-occurrence outcomes; no titles or free text. |
+| Alerts | Opt-in, off by default, in-app only, one hour before the occurrence, at most once per occurrence. |
+| User control | Alerts are estimates, can be dismissed, and never change a schedule automatically. Alternatives require user confirmation and a final conflict check. |
+| Data retention | Outcome records follow schedule retention and are removed with the schedule/account; no raw exports or Git commits. |
+| Data/model readiness | Synthetic data is for pipeline tests only. No real-user predictions or alerts until sufficient approved Wasaa data and held-out evaluation support them. |
+| Numeric history/score thresholds | Set from data and validation; no arbitrary fixed value is approved. |
+
+**Remaining gate:** confirm any supervisor or institutional approval needed before collecting or evaluating participant/user outcomes. This does not change the approved product policy above.
 
 ## 8. Next work after this research decision
 
-Once the decisions above are approved, update the related Sprint 8 implementation issues so occurrence-level outcome capture is an explicit prerequisite. Then prepare the leakage-safe dataset and baseline. Only proceed to model adaptation if the data and baseline report support a meaningful evaluation. The model source remains [`BrightSeya/scheduling`](https://github.com/BrightSeya/scheduling), but Wasaa must use its own approved labels, feature mapping, and validation evidence.
+Update the Sprint 8 issue dependencies so occurrence-level outcome capture is completed before schedule-history data preparation. Then prepare the leakage-safe dataset and baseline. Only proceed to model adaptation if the data and baseline report support a meaningful evaluation. The model source remains [`BrightSeya/scheduling`](https://github.com/BrightSeya/scheduling), but Wasaa must use its own approved labels, feature mapping, and validation evidence.
