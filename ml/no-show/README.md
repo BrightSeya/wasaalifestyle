@@ -1,6 +1,6 @@
 # No-show preparation pipeline (Sprint 8)
 
-This folder prepares explicit Wasaa schedule-occurrence outcomes for a future model evaluation. It does not train or serve a user-facing model. Prediction remains disabled until institutional approval, adequate approved data, and held-out evaluation are confirmed.
+This folder contains the leakage-controlled dataset preparation and research-only model evaluation pipeline for Wasaa commitment-risk estimates. The service integration and optional in-app alert path are implemented elsewhere in the repository, but remain disabled until an approved-real model artifact, adequate approved data, and reviewed held-out evaluation are available. The external [`BrightSeya/scheduling`](https://github.com/BrightSeya/scheduling) repository is a workflow reference only; its synthetic rows and booking-specific features are not imported into Wasaa.
 
 ## Label and feature rules
 
@@ -47,3 +47,22 @@ The repository has no approved real dataset snapshot. This issue can verify the 
 `src/train_model.py` adapts the logistic-regression/calibration workflow from [`BrightSeya/scheduling`](https://github.com/BrightSeya/scheduling) to the prepared Wasaa feature schema. The upstream synthetic rows and booking-specific fields are not used. The script selects regularization and a candidate F1 threshold on the validation period, fits Platt calibration on validation logits, and evaluates once on the same held-out cutoff used by the baseline. It compares held-out accuracy and Brier score with a majority-class baseline and writes a model card with provenance, counts, split, metrics, date, and commit.
 
 The trainer refuses to create artifacts unless the dataset report is labeled `approved-real` and the baseline has a valid chronological holdout. It also stops if the chronological train, validation, or test partition cannot support both labels. Synthetic fixtures may exercise the training and inference code in tests, but their metrics are not Wasaa-user evidence. All artifacts and reports belong in private local storage and stay out of Git. Even a successful evaluation leaves `user_facing_predictions_enabled` false; data sufficiency, metric review, and product alert thresholds still need approval.
+
+## Service and alert integration
+
+The Python service exposes a separate private `POST /noshow/predict` route; it does not replace the slot recommender's `POST /predict` route. Laravel performs authentication, schedule ownership and occurrence eligibility checks, derives the approved feature fields from the user's earlier explicit outcomes, and calls the Python service only when `COMMITMENT_RISK_ENABLED=true`. The request contains category, priority, weekday, scheduled hour, duration, lead time, and prior labeled-outcome counts/rates. It contains no user or schedule identifiers, titles, descriptions, notes, or raw outcome history. The model service does not connect to the application database.
+
+The optional Laravel alert command is scheduled once per minute. It requires all of: an enabled Laravel feature flag, a numeric alert threshold from 0 through 1, the user's opt-in preference, an eligible future occurrence in the 59–61 minute window, and a successful model assessment meeting the threshold. Alerts are in-app only, are deduplicated per assessment, and can be dismissed. No email or push delivery or automatic schedule change is performed. Alternative times use the existing recommendation and conflict-check flow and require explicit user confirmation. Keep both risk flags off and the threshold unset until the model readiness gate is approved. See [the system architecture](../../docs/system-architecture.md), [end-to-end checks](../../docs/commitment-risk-e2e-checks.md), and [Azure deployment runbook](../../docs/azure-vm-deployment.md) for request flow and operations.
+
+## Current evidence record
+
+| Evidence item | Repository status |
+|---|---|
+| Approved real Wasaa occurrence dataset and dataset counts | Not available in this checkout; no real dataset was prepared or read for the Sprint 8 implementation. |
+| Real-data majority baseline and held-out model metrics | Not available; no approved-real training report or model card is present. |
+| Real-data evaluation date and evaluated commit | Not available; there is no real-data evaluation to identify. |
+| Tracked configuration defaults | Laravel and Python risk flags are false and the alert threshold is unset. A private VM override cannot be verified from this repository checkout. |
+| Automated pipeline / endpoint tests | Synthetic generated rows and test doubles verify code behavior only. They do not measure Wasaa-user performance. |
+| Azure deployment verification | Deferred until the user completes the planned final hosting pass; repository documentation does not claim VM verification. |
+
+Do not replace these statuses with illustrative values. After institutional/supervisor approval, prepare a private dataset, review its report and exclusions, evaluate a model, record the resulting private model card's counts/split/metrics/date/commit, review threshold and alert-volume tradeoffs, and complete deployment checks before enabling predictions. Do not add raw user records, private feature files, model artifacts, or sensitive reports to Git.

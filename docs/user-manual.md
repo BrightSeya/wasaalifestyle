@@ -91,6 +91,7 @@ Open **Change password**, enter your current password, enter a new password, and
 - Under **Weekly Availability Windows**, choose the morning, afternoon, and evening periods when Wasaa may schedule tasks for each day.
 - Under **Productivity Preferences**, set your peak start and end hours and preferred break duration.
 - Under **Notification Alerts**, choose whether to receive schedule conflict, daily summary, and recommendation alerts.
+- **Commitment risk alerts** are an optional, in-app-only reminder based on earlier completed/missed commitments. The setting is off unless you turn it on. The reminder is an estimate that may be wrong; dismiss it if it is not useful. It does not move, cancel, or mark a commitment automatically. Suggested alternatives require your confirmation and a fresh conflict check. The service administrator must first enable an evaluated model and threshold; while those server-side controls are off, opting in does not produce commitment-risk alerts.
 - Select **Save preferences** to save these changes. Email alert delivery also depends on the website's email service being configured by its administrator.
 
 ### Dark mode
