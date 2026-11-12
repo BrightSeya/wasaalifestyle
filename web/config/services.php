@@ -24,6 +24,11 @@ return [
         'baselines_path' => env('SLOT_RECOMMENDER_BASELINES_PATH', base_path('../ml/slot-recommender/models/baselines.json')),
     ],
 
+    'commitment_risk' => [
+        'enabled' => env('COMMITMENT_RISK_ENABLED', false),
+        'timeout' => (int) env('COMMITMENT_RISK_TIMEOUT', 2),
+    ],
+
     'google_calendar' => [
         'client_id' => env('GOOGLE_CALENDAR_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CALENDAR_CLIENT_SECRET'),
