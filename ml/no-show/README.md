@@ -41,3 +41,9 @@ python -m pytest ..\no-show\tests
 ## Current evidence status
 
 The repository has no approved real dataset snapshot. This issue can verify the pipeline with synthetic records, but a real dataset-size summary and real-data baseline remain unavailable until approved outcomes are collected in Wasaa.
+
+## Model evaluation gate
+
+`src/train_model.py` adapts the logistic-regression/calibration workflow from [`BrightSeya/scheduling`](https://github.com/BrightSeya/scheduling) to the prepared Wasaa feature schema. The upstream synthetic rows and booking-specific fields are not used. The script selects regularization and a candidate F1 threshold on the validation period, fits Platt calibration on validation logits, and evaluates once on the same held-out cutoff used by the baseline. It compares held-out accuracy and Brier score with a majority-class baseline and writes a model card with provenance, counts, split, metrics, date, and commit.
+
+The trainer refuses to create artifacts unless the dataset report is labeled `approved-real` and the baseline has a valid chronological holdout. It also stops if the chronological train, validation, or test partition cannot support both labels. Synthetic fixtures may exercise the training and inference code in tests, but their metrics are not Wasaa-user evidence. All artifacts and reports belong in private local storage and stay out of Git. Even a successful evaluation leaves `user_facing_predictions_enabled` false; data sufficiency, metric review, and product alert thresholds still need approval.
