@@ -62,6 +62,11 @@ class CommitmentRiskAlertsTest extends TestCase
             'schedule_id' => $upcoming->id,
             'type' => 'system_message',
         ]);
+        $alert = $user->notifications()->sole();
+        $alert->update(['dismissed_at' => now(), 'is_read' => true]);
+        Artisan::call('commitment-risk:send-alerts');
+        $this->assertDatabaseCount('notifications', 1);
+        $this->assertNotNull($alert->fresh()->dismissed_at);
         Http::assertSent(fn (Request $request) => $request->url() === 'http://127.0.0.1:5001/noshow/predict');
     }
 
@@ -120,6 +125,56 @@ class CommitmentRiskAlertsTest extends TestCase
 
         Http::assertSentCount(1);
         $this->assertDatabaseCount('schedule_risk_assessments', 1);
+        $this->assertDatabaseCount('notifications', 0);
+    }
+
+    public function test_disabled_model_does_not_assess_or_create_alerts(): void
+    {
+        config(['services.commitment_risk.enabled' => false]);
+        $user = User::factory()->create(['preferences' => ['notify_commitment_risk' => true]]);
+        Schedule::factory()->for($user)->create([
+            'start_datetime' => Carbon::parse('2026-11-12 13:00'),
+            'end_datetime' => Carbon::parse('2026-11-12 14:00'),
+        ]);
+        Http::fake();
+
+        Artisan::call('commitment-risk:send-alerts');
+
+        Http::assertNothingSent();
+        $this->assertDatabaseCount('schedule_risk_assessments', 0);
+        $this->assertDatabaseCount('notifications', 0);
+    }
+
+    public function test_no_history_and_unavailable_model_do_not_create_assessments_or_alerts(): void
+    {
+        $noHistoryUser = User::factory()->create(['preferences' => ['notify_commitment_risk' => true]]);
+        Schedule::factory()->for($noHistoryUser)->create([
+            'start_datetime' => Carbon::parse('2026-11-12 13:00'),
+            'end_datetime' => Carbon::parse('2026-11-12 14:00'),
+        ]);
+
+        $unavailableUser = User::factory()->create(['preferences' => ['notify_commitment_risk' => true]]);
+        $history = Schedule::factory()->for($unavailableUser)->create([
+            'start_datetime' => Carbon::parse('2026-11-10 09:00'),
+            'end_datetime' => Carbon::parse('2026-11-10 10:00'),
+        ]);
+        $history->occurrenceOutcomes()->create([
+            'occurrence_start' => Carbon::parse('2026-11-10 09:00'),
+            'occurrence_end' => Carbon::parse('2026-11-10 10:00'),
+            'outcome' => 'completed',
+            'recorded_at' => Carbon::parse('2026-11-10 10:05'),
+        ]);
+        Schedule::factory()->for($unavailableUser)->create([
+            'start_datetime' => Carbon::parse('2026-11-12 13:00'),
+            'end_datetime' => Carbon::parse('2026-11-12 14:00'),
+            'created_at' => Carbon::parse('2026-11-01 09:00'),
+        ]);
+        Http::fake(['*/noshow/predict' => Http::response(['error' => 'unavailable'], 503)]);
+
+        Artisan::call('commitment-risk:send-alerts');
+
+        Http::assertSentCount(1);
+        $this->assertDatabaseCount('schedule_risk_assessments', 0);
         $this->assertDatabaseCount('notifications', 0);
     }
 }

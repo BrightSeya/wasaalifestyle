@@ -188,6 +188,25 @@ class CommitmentRiskAssessmentTest extends TestCase
         $this->assertDatabaseCount('schedule_risk_assessments', 0);
     }
 
+    public function test_completed_skipped_and_cancelled_occurrences_are_not_assessed(): void
+    {
+        $user = User::factory()->create();
+        $history = $this->schedule($user, '2026-11-10 09:00', '2026-11-10 10:00');
+        $this->addOutcome($history, '2026-11-10 09:00', '2026-11-10 10:00', 'completed');
+        $service = app(CommitmentRiskAssessmentService::class);
+        Http::fake();
+
+        foreach (['completed', 'skipped', 'cancelled'] as $outcome) {
+            $schedule = $this->schedule($user, '2026-11-14 14:00', '2026-11-14 15:00');
+            $this->addOutcome($schedule, '2026-11-14 14:00', '2026-11-14 15:00', $outcome, '2026-11-12 11:00');
+            $result = $service->assess($user, $schedule, Carbon::parse('2026-11-14 14:00'));
+            $this->assertSame('ineligible', $result['status']);
+        }
+
+        Http::assertNothingSent();
+        $this->assertDatabaseCount('schedule_risk_assessments', 0);
+    }
+
     public function test_http_failures_and_invalid_payloads_do_not_create_assessments(): void
     {
         $user = User::factory()->create();
