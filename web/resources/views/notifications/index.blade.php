@@ -39,11 +39,17 @@
                             </time>
                         </div>
                         @if ($notification->isCommitmentRiskAlert())
-                            <form method="POST" action="{{ route('notifications.dismiss', $notification) }}">
-                                @csrf
-                                @method('PATCH')
-                                <button type="submit" class="text-xs font-semibold text-gray-700 underline">Dismiss</button>
-                            </form>
+                            <div class="flex flex-wrap gap-3">
+                                <form method="POST" action="{{ route('notifications.alternatives', $notification) }}">
+                                    @csrf
+                                    <button type="submit" class="text-xs font-semibold text-brand-dark underline">Find a better time</button>
+                                </form>
+                                <form method="POST" action="{{ route('notifications.dismiss', $notification) }}">
+                                    @csrf
+                                    @method('PATCH')
+                                    <button type="submit" class="text-xs font-semibold text-gray-700 underline">Dismiss</button>
+                                </form>
+                            </div>
                         @elseif (! $notification->is_read)
                             <form method="POST" action="{{ route('notifications.read', $notification) }}">
                                 @csrf

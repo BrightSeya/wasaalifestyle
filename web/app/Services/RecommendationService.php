@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\Category;
 use App\Models\Activity;
+use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Carbon;
@@ -27,15 +29,39 @@ class RecommendationService
         $date = ($date ?? now())->copy();
         $day = $date->copy()->startOfDay();
 
-        $payload = [
+        return $this->requestRecommendations($user, [
             'category' => $activity->category->value,
-            // Carbon: Monday=1 ... Sunday=7. Wasaa/ATUS convention: Monday=0 ... Sunday=6.
             'day_of_week' => $day->dayOfWeekIso - 1,
             'duration_min' => $activity->duration_minutes,
             'schedule_density' => $this->scheduleDensity($user, $day),
             'gap_since_last_same_category_hrs' => $this->gapSinceLastSameCategory($user, $activity, $date),
-        ];
+        ]);
+    }
 
+    /**
+     * Ask the same slot-ranking service for alternatives to one exact commitment occurrence.
+     *
+     * @return array{ok: true, recommendations: array}|array{ok: false, message: string}
+     */
+    public function recommendForSchedule(User $user, Schedule $schedule, Carbon $date): array
+    {
+        $day = $date->copy()->startOfDay();
+        $duration = (int) abs($schedule->start_datetime->diffInMinutes($schedule->end_datetime));
+
+        return $this->requestRecommendations($user, [
+            'category' => $schedule->category->value,
+            'day_of_week' => $day->dayOfWeekIso - 1,
+            'duration_min' => $duration,
+            'schedule_density' => $this->scheduleDensity($user, $day),
+            'gap_since_last_same_category_hrs' => self::DEFAULT_GAP_HOURS,
+        ]);
+    }
+
+    /** @param array<string, int|float|string> $payload
+     * @return array{ok: true, recommendations: array}|array{ok: false, message: string}
+     */
+    private function requestRecommendations(User $user, array $payload): array
+    {
         try {
             $response = Http::baseUrl(config('services.slot_recommender.url'))
                 ->timeout(5)
