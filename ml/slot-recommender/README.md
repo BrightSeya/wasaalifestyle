@@ -79,3 +79,36 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:5001/retrain -Headers $head
 On success, the endpoint reruns the training pipeline, reloads the model and completion
 lookup into the running process, and returns `cv_f1` and `best_params` from the model card.
 
+### Private commitment-risk endpoint
+
+`POST /noshow/predict` is separate from the existing slot-recommendation `POST /predict` contract. It accepts only the approved derived feature object (category, priority, weekday, scheduled hour, duration, lead time, and prior recorded-outcome counts/rates). It accepts no user ID, schedule ID, titles, notes, or prototype booking ID.
+
+The endpoint is disabled by default in both Flask and the Azure systemd unit. Enable it only after an approved-real model artifact and matching model card have been installed in the private `ml/no-show/models/` directory. Use a systemd override rather than editing the tracked unit:
+
+```text
+WASAA_RISK_MODEL_ENABLED=true
+WASAA_RISK_MODEL_PATH=/var/www/wasaa/ml/no-show/models/commitment_risk.joblib
+WASAA_RISK_MODEL_CARD_PATH=/var/www/wasaa/ml/no-show/models/model_card.json
+```
+
+Missing, disabled, incompatible, version-mismatched, or synthetic-only artifacts return HTTP 503 without affecting the existing recommender. The current Azure systemd unit binds Gunicorn to `127.0.0.1:5001`; keep port 5001 closed in the VM network security group.
+
+Request example (illustrative values only):
+
+```json
+{
+  "category": "work",
+  "priority": "medium",
+  "weekday": 2,
+  "scheduled_hour": 14,
+  "duration_minutes": 60,
+  "lead_hours": 24,
+  "prior_labeled_count": 0,
+  "prior_missed_rate": null,
+  "prior_same_category_labeled_count": 0,
+  "prior_same_category_missed_rate": null
+}
+```
+
+The response contains a probability in `[0, 1]`, up to three positive logistic-contribution factors, and model name/version metadata. Invalid, missing, extra, or out-of-range fields receive HTTP 400. Service errors and unavailable models do not echo submitted values or identifiers. The endpoint itself does not create alerts or enable user-facing predictions; Laravel integration and alert controls are separate Sprint 8 issues.
+

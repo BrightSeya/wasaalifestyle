@@ -1,4 +1,4 @@
-"""Flask service hosting the trained slot-recommender Random Forest model.
+"""Flask service for slot recommendations and the optional private risk endpoint.
 
 The model and completion-rate lookup are loaded once at startup. If either file is
 missing (e.g. before training has been run), the app still starts so /health can report
@@ -7,10 +7,12 @@ the real load state instead of crashing.
 
 import hmac
 import json
+import math
 import os
 import sys
 import threading
 from pathlib import Path
+from typing import TypedDict
 
 import joblib
 import pandas as pd
@@ -22,14 +24,64 @@ LOOKUP_PATH = ROOT / "data" / "processed" / "completion_rate_lookup.csv"
 MODEL_CARD_PATH = ROOT / "models" / "model_card.json"
 
 sys.path.append(str(ROOT / "src"))
+NOSHOW_SRC = ROOT.parent / "no-show" / "src"
+sys.path.append(str(NOSHOW_SRC))
 from atus_category_map import CATEGORIES  # noqa: E402
 from candidates import REQUEST_FIELDS, top_k_hours  # noqa: E402
+from train_model import FEATURES as RISK_FEATURES  # noqa: E402
+from train_model import explain_factors, predict_probability  # noqa: E402
 import train  # noqa: E402
 
 TOP_K = 3
 CONFIDENCE_THRESHOLD = 0.5
 
+
+class CommitmentRiskRequest(TypedDict):
+    category: str
+    priority: str
+    weekday: int
+    scheduled_hour: int
+    duration_minutes: float
+    lead_hours: float
+    prior_labeled_count: int
+    prior_missed_rate: float | None
+    prior_same_category_labeled_count: int
+    prior_same_category_missed_rate: float | None
+
 app = Flask(__name__)
+
+RISK_MODEL_PATH = Path(
+    os.environ.get(
+        "WASAA_RISK_MODEL_PATH",
+        ROOT.parent / "no-show" / "models" / "commitment_risk.joblib",
+    )
+)
+RISK_MODEL_CARD_PATH = Path(
+    os.environ.get(
+        "WASAA_RISK_MODEL_CARD_PATH",
+        ROOT.parent / "no-show" / "models" / "model_card.json",
+    )
+)
+risk_model_enabled = os.environ.get("WASAA_RISK_MODEL_ENABLED", "false").strip().lower() == "true"
+risk_model_bundle = None
+risk_model_card = None
+
+if risk_model_enabled and RISK_MODEL_PATH.is_file() and RISK_MODEL_CARD_PATH.is_file():
+    try:
+        candidate_card = json.loads(RISK_MODEL_CARD_PATH.read_text(encoding="utf-8"))
+        candidate_bundle = joblib.load(RISK_MODEL_PATH)
+        candidate_version = candidate_card.get("git_commit") or candidate_card.get("evaluation_date_utc")
+        if (
+            candidate_card.get("evidence_type") == "approved-real"
+            and isinstance(candidate_card.get("model"), str)
+            and candidate_bundle.get("features") == RISK_FEATURES
+            and candidate_bundle.get("version") == candidate_version
+        ):
+            risk_model_bundle = candidate_bundle
+            risk_model_card = candidate_card
+    except Exception:
+        # Keep the slot recommender available if the optional risk model cannot load.
+        pass
 
 model = None
 lookup = None
@@ -110,6 +162,94 @@ def predict():
         "category": data["category"],
         "day_of_week": data["day_of_week"],
         "recommendations": recommendations,
+    })
+
+
+def validate_risk_request(data: object) -> str | None:
+    """Return a safe validation error, or None when the approved feature object is valid."""
+    if not isinstance(data, dict):
+        return "Request body must be a JSON object."
+
+    missing = set(RISK_FEATURES) - set(data)
+    unexpected = set(data) - set(RISK_FEATURES)
+    if missing:
+        return "Request is missing required approved feature fields."
+    if unexpected:
+        return "Request contains unsupported fields."
+
+    if not isinstance(data["category"], str) or data["category"] not in CATEGORIES:
+        return "category is not supported."
+    if not isinstance(data["priority"], str) or data["priority"] not in {"low", "medium", "high"}:
+        return "priority is not supported."
+
+    for field, minimum, maximum in (("weekday", 0, 6), ("scheduled_hour", 0, 23)):
+        value = data[field]
+        if not isinstance(value, int) or isinstance(value, bool) or not minimum <= value <= maximum:
+            return f"{field} is outside the supported range."
+
+    for field in ("prior_labeled_count", "prior_same_category_labeled_count"):
+        value = data[field]
+        if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 1_000_000:
+            return f"{field} must be a non-negative integer in the supported range."
+
+    if data["prior_same_category_labeled_count"] > data["prior_labeled_count"]:
+        return "Category history count cannot exceed total history count."
+
+    for field, minimum, maximum in (
+        ("duration_minutes", 1, 10_080),
+        ("lead_hours", 0, 87_600),
+    ):
+        value = data[field]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            return f"{field} must be a finite number."
+        if not minimum <= value <= maximum:
+            return f"{field} is outside the supported range."
+
+    for field, count_field in (
+        ("prior_missed_rate", "prior_labeled_count"),
+        ("prior_same_category_missed_rate", "prior_same_category_labeled_count"),
+    ):
+        value = data[field]
+        if value is None:
+            if data[count_field] != 0:
+                return f"{field} must be supplied when its history count is non-zero."
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            return f"{field} must be a finite number or null."
+        if not 0 <= value <= 1 or data[count_field] == 0:
+            return f"{field} must be between 0 and 1 and requires a non-zero history count."
+
+    return None
+
+
+@app.post("/noshow/predict")
+def predict_commitment_risk():
+    if not risk_model_enabled or risk_model_bundle is None or risk_model_card is None:
+        return jsonify({"error": "Commitment-risk prediction is unavailable."}), 503
+
+    data = request.get_json(silent=True)
+    error = validate_risk_request(data)
+    if error:
+        return jsonify({"error": error}), 400
+
+    # Use a fixed allow-list; no request IDs, text, or raw payload is passed to inference.
+    feature_row: CommitmentRiskRequest = {field: data[field] for field in RISK_FEATURES}
+    try:
+        probability = float(predict_probability(risk_model_bundle, pd.DataFrame([feature_row]))[0])
+        if not math.isfinite(probability) or not 0 <= probability <= 1:
+            raise ValueError("Model returned an invalid probability")
+        factors = explain_factors(risk_model_bundle, feature_row, limit=3)
+    except Exception:
+        app.logger.warning("Commitment-risk inference failed")
+        return jsonify({"error": "Commitment-risk prediction is unavailable."}), 503
+
+    return jsonify({
+        "probability": round(probability, 4),
+        "factors": factors,
+        "model": {
+            "name": risk_model_card.get("model"),
+            "version": risk_model_card.get("git_commit") or risk_model_card.get("evaluation_date_utc"),
+        },
     })
 
 

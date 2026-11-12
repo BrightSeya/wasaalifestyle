@@ -87,10 +87,14 @@ def test_train_calibrate_evaluate_and_save_a_synthetic_test_artifact(tmp_path):
     artifact = tmp_path / "synthetic-only.joblib"
     joblib.dump(bundle, artifact)
     restored = joblib.load(artifact)
+    assert restored["version"] == model_card["git_commit"] or restored["version"] == model_card["evaluation_date_utc"]
     probabilities = train_model.predict_probability(restored, dataset[train_model.FEATURES].iloc[:5])
     assert len(probabilities) == 5
     assert np.isfinite(probabilities).all()
     assert ((probabilities >= 0) & (probabilities <= 1)).all()
+    factors = train_model.explain_factors(restored, dataset[train_model.FEATURES].iloc[0].to_dict())
+    assert len(factors) <= 3
+    assert all(factor["log_odds_contribution"] > 0 for factor in factors)
 
 
 def test_training_rejects_post_event_columns():

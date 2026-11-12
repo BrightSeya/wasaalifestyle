@@ -195,7 +195,6 @@ def train_and_evaluate(
     model_card = {
         "model": "Wasaa commitment-risk logistic regression with validation-fitted Platt calibration",
         "approach_reference": "https://github.com/BrightSeya/scheduling (workflow reference only; its synthetic rows and booking-specific fields are not used)",
-        "approach_reference": "https://github.com/BrightSeya/scheduling (workflow reference only; its synthetic rows and booking-specific fields are not used)",
         "evidence_type": evidence_type,
         "target": {"completed": 0, "missed": 1, "excluded": ["skipped", "cancelled", "unreported"]},
         "feature_list": FEATURES,
@@ -246,7 +245,13 @@ def train_and_evaluate(
         "evaluation_date_utc": datetime.now(timezone.utc).isoformat(),
         "git_commit": _git_commit(),
     }
-    bundle = {"model": model, "calibrator": calibrator, "threshold": threshold, "features": FEATURES}
+    bundle = {
+        "model": model,
+        "calibrator": calibrator,
+        "threshold": threshold,
+        "features": FEATURES,
+        "version": model_card["git_commit"] or model_card["evaluation_date_utc"],
+    }
     return bundle, model_card
 
 
@@ -255,6 +260,41 @@ def predict_probability(bundle: dict[str, Any], feature_rows: pd.DataFrame) -> n
         raise ValueError("Inference rows must match the approved Wasaa feature schema")
     logits = bundle["model"].decision_function(feature_rows[FEATURES])
     return bundle["calibrator"].predict_proba(logits.reshape(-1, 1))[:, 1]
+
+
+def explain_factors(bundle: dict[str, Any], feature_row: dict[str, Any], limit: int = 3) -> list[dict[str, Any]]:
+    """Return the strongest positive logistic contributions without exposing IDs or raw text."""
+    if list(bundle["features"]) != FEATURES or set(feature_row) != set(FEATURES):
+        raise ValueError("Explanation row must match the approved Wasaa feature schema")
+
+    model = bundle["model"]
+    pipeline = model.named_steps["features"]
+    transformed = pipeline.transform(pd.DataFrame([feature_row])[FEATURES])
+    if hasattr(transformed, "toarray"):
+        transformed = transformed.toarray()
+    contributions = transformed[0] * model.named_steps["classifier"].coef_[0]
+    names = pipeline.get_feature_names_out()
+
+    ranked = []
+    for encoded_name, contribution in zip(names, contributions, strict=True):
+        if contribution <= 0:
+            continue
+        encoded_field = encoded_name.split("__", 1)[-1]
+        field = encoded_field.split("_", 1)[0] if encoded_field.startswith("category_") else encoded_field
+        if field not in FEATURES:
+            field = encoded_field
+        value = feature_row.get(field)
+        ranked.append((float(contribution), field, value))
+
+    ranked.sort(reverse=True, key=lambda item: item[0])
+    return [
+        {
+            "feature": field,
+            "value": value,
+            "log_odds_contribution": round(contribution, 4),
+        }
+        for contribution, field, value in ranked[:limit]
+    ]
 
 
 def main() -> int:
