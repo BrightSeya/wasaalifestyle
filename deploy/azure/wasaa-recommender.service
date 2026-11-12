@@ -11,6 +11,9 @@ ExecStart=/var/www/wasaa/ml/slot-recommender/.venv/bin/gunicorn --workers 1 --bi
 Restart=on-failure
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
+Environment=WASAA_RISK_MODEL_ENABLED=false
+Environment=WASAA_RISK_MODEL_PATH=/var/www/wasaa/ml/no-show/models/commitment_risk.joblib
+Environment=WASAA_RISK_MODEL_CARD_PATH=/var/www/wasaa/ml/no-show/models/model_card.json
 
 [Install]
 WantedBy=multi-user.target
