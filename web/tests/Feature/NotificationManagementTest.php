@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Notification;
+use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -82,5 +83,48 @@ class NotificationManagementTest extends TestCase
         $this->actingAs($user)->get('/dashboard')
             ->assertOk()
             ->assertSee('aria-label="2 unread notifications"', false);
+    }
+
+    public function test_user_can_dismiss_their_commitment_alert_and_it_is_hidden(): void
+    {
+        $user = User::factory()->create();
+        $schedule = Schedule::factory()->for($user)->create();
+        $assessment = $schedule->riskAssessments()->create([
+            'occurrence_start' => now()->addHour(),
+            'probability' => 0.8,
+            'model_version' => 'test-model',
+            'assessed_at' => now(),
+            'schedule_updated_at' => $schedule->updated_at,
+        ]);
+        $notification = Notification::factory()->for($user)->create([
+            'schedule_id' => $schedule->id,
+            'risk_assessment_id' => $assessment->id,
+        ]);
+
+        $this->actingAs($user)->patch(route('notifications.dismiss', $notification))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Commitment alert dismissed.');
+
+        $this->assertTrue($notification->fresh()->is_read);
+        $this->assertNotNull($notification->fresh()->dismissed_at);
+        $this->actingAs($user)->get(route('notifications.index'))->assertDontSee($notification->message);
+    }
+
+    public function test_user_cannot_dismiss_another_users_commitment_alert(): void
+    {
+        $user = User::factory()->create();
+        $owner = User::factory()->create();
+        $schedule = Schedule::factory()->for($owner)->create();
+        $assessment = $schedule->riskAssessments()->create([
+            'occurrence_start' => now()->addHour(),
+            'probability' => 0.8,
+            'model_version' => 'test-model',
+            'assessed_at' => now(),
+            'schedule_updated_at' => $schedule->updated_at,
+        ]);
+        $notification = Notification::factory()->for($owner)->create(['risk_assessment_id' => $assessment->id]);
+
+        $this->actingAs($user)->patch(route('notifications.dismiss', $notification))->assertNotFound();
+        $this->assertNull($notification->fresh()->dismissed_at);
     }
 }
