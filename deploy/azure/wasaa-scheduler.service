@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Wasaa Lifestyle scheduled tasks
+After=network-online.target mysql.service wasaa-recommender.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=azureuser
+Group=www-data
+WorkingDirectory=/var/www/wasaa/web
+ExecStart=/usr/bin/php artisan schedule:run --no-interaction
