@@ -8,9 +8,12 @@ This document describes the repository as implemented: its Laravel application, 
 flowchart LR
     U[Browser] -->|HTTPS in deployment / HTTP locally| L[Laravel 12 application]
     L --> DB[(MySQL or MariaDB locally; SQLite in CI)]
-    L -->|POST /predict, timeout 5 s| F[Flask recommendation service]
-    F --> M[Random Forest model artifact]
-    F --> C[Model card and baseline metadata]
+    L -->|POST /predict, timeout 5 s| F[Private Flask API]
+    L -->|Optional POST /noshow/predict, short timeout| F
+    F --> M[Slot recommender Random Forest artifact]
+    F --> R[Optional calibrated risk model artifact]
+    F --> C[Model cards and baseline metadata]
+    L -->|Optional minimal assessment and in-app alert| DB
     L -->|OAuth read-only import| G[Google Calendar API]
     L -->|Configured mail transport| E[Email provider]
 ```
@@ -24,13 +27,15 @@ Laravel owns authentication, authorization, validation, schedule persistence, co
 - `docs/` — user, integration, deployment, performance, and project documentation.
 - `.github/workflows/ci.yml` — repository sanity, Laravel, and ML test jobs.
 
-The no-show recommender is planned and is not part of the running scheduling flow.
+The optional commitment-risk flow is implemented behind default-off controls. Laravel owns eligibility, per-user prior-outcome feature derivation, assessment persistence, opt-in, and alert creation. The Flask `POST /noshow/predict` route accepts only the allow-listed derived feature object and loads an artifact only when the Python model flag is enabled and a matching approved-real model card is available. It is a separate endpoint from slot recommendations. The Flask process must remain on a private interface; the Azure unit binds to loopback. See the [commitment-risk model and operations record](../ml/no-show/README.md).
 
 ## Request and data flow
 
 When a signed-in user requests recommendations, Laravel gathers the task category, weekday (Monday is `0`), duration in minutes, schedule density, and hours since the same category was last scheduled. Laravel calls the configured Flask URL at `/predict` with a five-second timeout. Flask evaluates candidate hours, using the trained classifier and completion lookup, and returns up to three suggestions with confidence and suitability data. Laravel presents the results and remains responsible for checking the user's schedule, enforcing ownership, resolving conflicts, and persisting any confirmed schedule.
 
 The recommender's `/health` endpoint reports whether a model is loaded. `/predict` returns a client error for invalid request JSON and a service-unavailable response when model artifacts are unavailable. `/retrain` is protected by `ML_RETRAIN_KEY` in the `X-API-Key` header. Retraining is synchronous, so this endpoint should not be exposed publicly. The prediction route has no independent authentication; restrict access to the Flask service at the network layer.
+
+For commitment-risk assessments, Laravel calls `/noshow/predict` only when `COMMITMENT_RISK_ENABLED` is enabled and the occurrence has eligible same-user history. The service accepts no identifiers or free text. The alert scheduler additionally requires the user's opt-in and a configured evaluated threshold; it creates only a deduplicated in-app alert about one hour before an eligible occurrence. Alerts do not change schedules and alternatives require user confirmation and a conflict recheck. Both risk features remain off by default. There is currently no approved real Wasaa dataset, real-data baseline/model evaluation, or deployed risk artifact in the repository; synthetic tests validate contracts only. Do not cite them as product performance evidence. Details, provenance, and operations state are recorded in the [model README](../ml/no-show/README.md) and [Azure runbook](azure-vm-deployment.md).
 
 Google Calendar integration uses a read-only OAuth scope. Laravel stores OAuth tokens encrypted using `APP_KEY`. Imports are limited to a 31-day range; duplicate events are skipped. All-day events and events spanning local calendar days are not supported by the current importer. See [Google Calendar OAuth and import](google-calendar-oauth.md).
 
