@@ -19,6 +19,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RecommendationController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ScheduleDayController;
+use App\Http\Controllers\ScheduleOccurrenceOutcomeController;
 use App\Http\Controllers\ScheduleWeekController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -61,6 +62,7 @@ Route::middleware(['auth', 'account.active', 'verified'])->group(function () {
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
     Route::get('/schedules/week', ScheduleWeekController::class)->name('schedules.week');
     Route::get('/schedules/day', ScheduleDayController::class)->name('schedules.day');
+    Route::post('/schedules/{schedule}/outcomes', [ScheduleOccurrenceOutcomeController::class, 'store'])->name('schedules.outcomes.store');
     Route::get('/schedules/google-calendar/import', [GoogleCalendarImportController::class, 'index'])->name('schedules.google-calendar.import');
     Route::post('/schedules/google-calendar/import/preview', [GoogleCalendarImportController::class, 'preview'])->name('schedules.google-calendar.preview');
     Route::post('/schedules/google-calendar/import/confirm', [GoogleCalendarImportController::class, 'confirm'])->name('schedules.google-calendar.confirm');

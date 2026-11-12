@@ -53,7 +53,9 @@ class RecommendationService
 
     private function scheduleDensity(User $user, Carbon $date): int
     {
-        return $this->occurrences->between($user, $date, $date->copy()->addDay())->count();
+        return $this->occurrences->between($user, $date, $date->copy()->addDay())
+            ->reject(fn ($occurrence) => $occurrence->outcome === 'cancelled')
+            ->count();
     }
 
     /**

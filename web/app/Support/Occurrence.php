@@ -15,5 +15,6 @@ final readonly class Occurrence
         public Schedule $schedule,
         public Carbon $start,
         public Carbon $end,
+        public ?string $outcome = null,
     ) {}
 }

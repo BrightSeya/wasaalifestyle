@@ -60,16 +60,35 @@
                             $minutesFromTop = ($entry->start->hour - $startHour) * 60 + $entry->start->minute;
                             $duration = abs($entry->start->diffInMinutes($entry->end));
                         @endphp
-                        <a href="{{ route('schedules.edit', $entry->schedule) }}"
-                           class="absolute inset-x-1 overflow-hidden rounded-md border px-2 py-1 text-xs hover:shadow {{ $colors[$entry->schedule->category->value] }}"
-                           style="top: {{ $minutesFromTop / 60 * $hourHeight }}px; height: {{ max(20, $duration / 60 * $hourHeight) }}px;"
+                        @php
+                            $outcomeKey = $entry->schedule->id.'|'.$entry->start->format('Y-m-d H:i:s');
+                            $savedOutcome = $occurrenceOutcomes->get($outcomeKey);
+                        @endphp
+                        <div
+                           @class(['absolute inset-x-1 overflow-hidden rounded-md border px-2 py-1 text-xs hover:shadow', $colors[$entry->schedule->category->value], 'opacity-60 line-through' => $savedOutcome?->outcome === 'cancelled'])
+                           style="top: {{ $minutesFromTop / 60 * $hourHeight }}px; height: {{ max(36, $duration / 60 * $hourHeight) }}px;"
                            title="{{ $entry->schedule->title }} ({{ $entry->start->format('g:i A') }} - {{ $entry->end->format('g:i A') }})@if ($entry->schedule->timezone) — Google source zone: {{ $entry->schedule->timezone }}@endif">
+                            <a href="{{ route('schedules.edit', $entry->schedule) }}" class="block hover:underline">
                             <span class="block truncate font-semibold">{{ $entry->schedule->title }}</span>
                             <span class="block truncate text-gray-500">
                                 {{ ucfirst($entry->schedule->category->value) }}
                                 @if ($entry->schedule->is_recurring) &middot; {{ ucfirst($entry->schedule->recurrence_rule) }} @endif
                             </span>
-                        </a>
+                            </a>
+                            @if ($savedOutcome?->outcome === 'cancelled')
+                                <span class="block truncate text-[10px] font-bold text-red-700">Cancelled</span>
+                            @else
+                            @if ($entry->end->lte(now()))
+                                @if ($savedOutcome)
+                                    <span class="block truncate text-[10px] font-semibold text-gray-600">{{ ucfirst($savedOutcome->outcome) }}</span>
+                                @else
+                                    <a href="{{ route('schedules.day', ['date' => $entry->start->format('Y-m-d')]) }}" class="block truncate text-[10px] font-semibold text-gray-700 underline">Record outcome</a>
+                                @endif
+                            @else
+                                <a href="{{ route('schedules.day', ['date' => $entry->start->format('Y-m-d')]) }}" class="block truncate text-[10px] font-semibold text-gray-700 underline">Manage occurrence</a>
+                            @endif
+                            @endif
+                        </div>
                     @endforeach
                 </div>
             @endforeach
