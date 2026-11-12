@@ -184,6 +184,7 @@
                         'notify_conflicts' => ['Schedule Conflict Alerts', 'Notify when double-booking happens', $preferences->notifyConflicts],
                         'notify_daily_summary' => ['Daily Schedule Summary', 'Send morning email preview of the day', $preferences->notifyDailySummary],
                         'notify_recommendations' => ['Recommendation Alerts', 'When optimal slot improvements are found', $preferences->notifyRecommendations],
+                        'notify_commitment_risk' => ['Commitment risk alerts', 'When enabled by the service, get in-app reminders based on your earlier completed and missed commitments. Estimates can be wrong; no email or push alerts are sent.', $preferences->notifyCommitmentRisk],
                     ] as $name => [$title, $description, $current])
                         <label class="flex items-center justify-between gap-4">
                             <span>

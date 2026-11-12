@@ -23,6 +23,7 @@ final readonly class UserPreferences
         public bool $notifyConflicts,
         public bool $notifyDailySummary,
         public bool $notifyRecommendations,
+        public bool $notifyCommitmentRisk,
     ) {}
 
     public static function default(): self
@@ -41,6 +42,7 @@ final readonly class UserPreferences
             notifyConflicts: true,
             notifyDailySummary: true,
             notifyRecommendations: true,
+            notifyCommitmentRisk: false,
         );
     }
 
@@ -69,6 +71,7 @@ final readonly class UserPreferences
             notifyConflicts: (bool) ($raw['notify_conflicts'] ?? $defaults->notifyConflicts),
             notifyDailySummary: (bool) ($raw['notify_daily_summary'] ?? $defaults->notifyDailySummary),
             notifyRecommendations: (bool) ($raw['notify_recommendations'] ?? $defaults->notifyRecommendations),
+            notifyCommitmentRisk: (bool) ($raw['notify_commitment_risk'] ?? $defaults->notifyCommitmentRisk),
         );
     }
 
@@ -85,6 +88,7 @@ final readonly class UserPreferences
             'notify_conflicts' => $this->notifyConflicts,
             'notify_daily_summary' => $this->notifyDailySummary,
             'notify_recommendations' => $this->notifyRecommendations,
+            'notify_commitment_risk' => $this->notifyCommitmentRisk,
         ];
     }
 

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ScheduleRiskAssessment extends Model
 {
@@ -32,5 +33,10 @@ class ScheduleRiskAssessment extends Model
     public function schedule(): BelongsTo
     {
         return $this->belongsTo(Schedule::class);
+    }
+
+    public function notification(): HasOne
+    {
+        return $this->hasOne(Notification::class, 'risk_assessment_id');
     }
 }

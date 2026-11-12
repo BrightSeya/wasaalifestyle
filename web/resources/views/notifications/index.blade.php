@@ -22,7 +22,7 @@
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
                             <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                {{ str($notification->type)->replace('_', ' ')->title() }}
+                                {{ $notification->isCommitmentRiskAlert() ? 'Commitment risk alert' : str($notification->type)->replace('_', ' ')->title() }}
                                 @unless ($notification->is_read)
                                     <span class="ml-2 rounded-full bg-brand/30 px-2 py-0.5 normal-case">Unread</span>
                                 @endunless
@@ -38,7 +38,13 @@
                                 {{ $notification->created_at->format('M j, Y g:i A') }}
                             </time>
                         </div>
-                        @unless ($notification->is_read)
+                        @if ($notification->isCommitmentRiskAlert())
+                            <form method="POST" action="{{ route('notifications.dismiss', $notification) }}">
+                                @csrf
+                                @method('PATCH')
+                                <button type="submit" class="text-xs font-semibold text-gray-700 underline">Dismiss</button>
+                            </form>
+                        @elseif (! $notification->is_read)
                             <form method="POST" action="{{ route('notifications.read', $notification) }}">
                                 @csrf
                                 @method('PATCH')

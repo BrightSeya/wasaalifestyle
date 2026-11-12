@@ -27,6 +27,7 @@ return [
     'commitment_risk' => [
         'enabled' => env('COMMITMENT_RISK_ENABLED', false),
         'timeout' => (int) env('COMMITMENT_RISK_TIMEOUT', 2),
+        'alert_threshold' => env('COMMITMENT_RISK_ALERT_THRESHOLD'),
     ],
 
     'google_calendar' => [
