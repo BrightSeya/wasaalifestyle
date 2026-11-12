@@ -122,9 +122,15 @@ class NotificationManagementTest extends TestCase
             'assessed_at' => now(),
             'schedule_updated_at' => $schedule->updated_at,
         ]);
-        $notification = Notification::factory()->for($owner)->create(['risk_assessment_id' => $assessment->id]);
+        $notification = Notification::factory()->for($owner)->create([
+            'risk_assessment_id' => $assessment->id,
+            'message' => 'Private commitment-risk alert',
+        ]);
 
         $this->actingAs($user)->patch(route('notifications.dismiss', $notification))->assertNotFound();
         $this->assertNull($notification->fresh()->dismissed_at);
+        $this->actingAs($user)->get(route('notifications.index'))
+            ->assertOk()
+            ->assertDontSee('Private commitment-risk alert');
     }
 }
