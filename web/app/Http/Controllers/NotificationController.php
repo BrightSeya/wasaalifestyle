@@ -45,4 +45,12 @@ class NotificationController extends Controller
 
         return back()->with('status', 'Commitment alert dismissed.');
     }
+
+    public function destroy(Request $request, Notification $notification): RedirectResponse
+    {
+        $ownedNotification = $request->user()->notifications()->findOrFail($notification->getKey());
+        $ownedNotification->delete();
+
+        return back()->with('status', 'Notification deleted.');
+    }
 }

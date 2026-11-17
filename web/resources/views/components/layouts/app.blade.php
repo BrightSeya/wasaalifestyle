@@ -39,6 +39,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f7f6f3">
     <title>{{ $title }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Danfo&display=swap" rel="stylesheet">
     <script src="{{ asset('theme.js') }}"></script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -46,9 +49,12 @@
     <button type="button" data-sidebar-backdrop class="sidebar-backdrop fixed inset-0 z-30 hidden bg-gray-950/40 backdrop-blur-[2px] md:hidden" aria-label="Close navigation"></button>
 
     <aside id="sidebar" class="app-sidebar fixed inset-y-0 left-0 z-40 flex w-[17rem] -translate-x-full flex-col border-r border-white/70 bg-white px-4 py-5 shadow-2xl shadow-gray-900/10 transition-transform duration-300 md:translate-x-0">
-        <a href="{{ route($user->isAdmin() ? 'admin.dashboard' : 'dashboard') }}" class="mb-8 flex items-center gap-3 rounded-2xl px-2 py-1.5 font-bold tracking-tight text-gray-900">
-            <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-300 via-brand to-orange-400 text-gray-950 shadow-md shadow-amber-900/15"><x-icon name="sunrise" class="h-6 w-6" /></span>
-            <span><span class="block text-[15px]">Wasaa</span><span class="mt-0.5 block text-[10px] font-semibold uppercase tracking-[.19em] text-gray-500">Make room for life</span></span>
+        <a href="{{ route($user->isAdmin() ? 'admin.dashboard' : 'dashboard') }}" class="mb-8 flex w-full items-center justify-center gap-2.5 rounded-2xl px-2 py-2 text-gray-900 transition hover:bg-amber-50/70">
+            <x-icon name="sunrise" class="h-11 w-11 shrink-0 text-amber-700" />
+            <span class="flex flex-col items-start">
+                <span class="font-danfo text-[2.65rem] leading-[.82] tracking-wide">WASAA</span>
+                <span class="mt-1.5 text-[8px] font-semibold uppercase tracking-[.16em] text-gray-500">Make room for life</span>
+            </span>
         </a>
 
         <div class="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.18em] text-gray-400">{{ $user->isAdmin() ? 'Admin portal' : 'Your space' }}</div>

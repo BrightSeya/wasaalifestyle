@@ -82,3 +82,52 @@ def test_top_k_hours_matches_the_start_of_rank_hours(request_body, lookup):
     assert len(top) == 3
     assert [row["hour"] for row in top] == full_ranking[:3]
     assert top[0]["hour"] == 9  # work's only peak hour in this fixture
+
+
+def test_matching_completed_feedback_can_change_the_top_recommendation(request_body, lookup):
+    score_fn = lambda df: df["hour"].map(lambda hour: 0.9 if hour == 9 else 0.4)  # noqa: E731
+    feedback = {
+        "2:15": {
+            "category_completed": 50.0,
+            "category_total": 50.0,
+            "other_completed": 0.0,
+            "other_total": 0.0,
+        },
+    }
+
+    ranked = score_candidates(request_body, lookup, score_fn, feedback)
+
+    assert ranked.iloc[0]["hour"] == 15
+
+
+def test_missed_feedback_reduces_a_previously_high_hour_score(request_body, lookup):
+    score_fn = lambda df: df["hour"].map(lambda hour: 0.9 if hour == 9 else 0.4)  # noqa: E731
+    feedback = {
+        "2:9": {
+            "category_completed": 0.0,
+            "category_total": 20.0,
+            "other_completed": 0.0,
+            "other_total": 0.0,
+        },
+    }
+
+    ranked = score_candidates(request_body, lookup, score_fn, feedback)
+
+    assert ranked.iloc[0]["hour"] != 9
+    assert ranked.loc[ranked["hour"] == 9, "score"].iloc[0] < 0.4
+
+
+def test_feedback_from_another_weekday_does_not_change_the_ranking(request_body, lookup):
+    score_fn = lambda df: df["hour"].map(lambda hour: 0.9 if hour == 9 else 0.4)  # noqa: E731
+    feedback = {
+        "1:15": {
+            "category_completed": 20.0,
+            "category_total": 20.0,
+            "other_completed": 0.0,
+            "other_total": 0.0,
+        },
+    }
+
+    ranked = score_candidates(request_body, lookup, score_fn, feedback)
+
+    assert ranked.iloc[0]["hour"] == 9

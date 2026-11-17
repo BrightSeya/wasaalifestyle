@@ -50,7 +50,7 @@
     <div class="grid gap-4 sm:grid-cols-2">
         <div>
             <label for="category" class="block text-xs text-gray-600">Category</label>
-            <select id="category" name="category" class="{{ $input }}">
+            <select id="category" name="category" required class="{{ $input }}">
                 @foreach (\App\Enums\Category::cases() as $option)
                     <option value="{{ $option->value }}" @selected($category === $option->value)>{{ ucfirst($option->value) }}</option>
                 @endforeach
@@ -59,7 +59,7 @@
         </div>
         <div>
             <label for="priority" class="block text-xs text-gray-600">Priority</label>
-            <select id="priority" name="priority" class="{{ $input }}">
+            <select id="priority" name="priority" required class="{{ $input }}">
                 @foreach (['low', 'medium', 'high'] as $option)
                     <option value="{{ $option }}" @selected($priority === $option)>{{ ucfirst($option) }}</option>
                 @endforeach
@@ -73,7 +73,7 @@
         <div class="mt-1 inline-flex rounded-md border border-gray-300 bg-white p-1 text-sm">
             @foreach (['none' => 'None', 'daily' => 'Daily', 'weekly' => 'Weekly'] as $value => $label)
                 <label class="cursor-pointer">
-                    <input type="radio" name="recurrence" value="{{ $value }}" class="peer sr-only" @checked($recurrence === $value)>
+                    <input type="radio" name="recurrence" value="{{ $value }}" class="peer sr-only" @if ($loop->first) required @endif @checked($recurrence === $value)>
                     <span class="block rounded px-3 py-1 text-gray-600 peer-checked:bg-brand peer-checked:font-semibold peer-checked:text-gray-900">{{ $label }}</span>
                 </label>
             @endforeach

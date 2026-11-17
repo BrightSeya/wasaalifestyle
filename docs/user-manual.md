@@ -90,7 +90,8 @@ Open **Change password**, enter your current password, enter a new password, and
 
 - Under **Weekly Availability Windows**, choose the morning, afternoon, and evening periods when Wasaa may schedule tasks for each day.
 - Under **Productivity Preferences**, set your peak start and end hours and preferred break duration.
-- Under **Notification Alerts**, choose whether to receive schedule conflict, daily summary, and recommendation alerts.
+- Under **No-show predictions and learning**, choose whether Wasaa may use your completed and missed activity outcomes to estimate risk and personalize future estimates. New users can opt in during signup. Initial estimates use synthetic booking data and may be inaccurate; prototype alerts are labelled. Turning the feature off stops future risk assessments and alerts.
+- Under **Notification Alerts**, choose whether to receive schedule conflict, daily summary, recommendation, and no-show alerts. No-show alerts are in-app only and require **No-show predictions and learning** to be enabled.
 - Select **Save preferences** to save these changes. Email alert delivery also depends on the website's email service being configured by its administrator.
 
 ### Dark mode

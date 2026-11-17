@@ -16,6 +16,7 @@ class RecommendationService
 
     public function __construct(
         private readonly ScheduleOccurrences $occurrences,
+        private readonly UserRecommendationFeedback $feedback,
     ) {}
 
     /**
@@ -24,17 +25,30 @@ class RecommendationService
      *
      * @return array{ok: true, recommendations: array}|array{ok: false, message: string}
      */
-    public function recommend(User $user, Activity $activity, ?Carbon $date = null): array
+    public function recommend(User $user, Activity $activity, ?Carbon $date = null, array $excludedHours = []): array
     {
         $date = ($date ?? now())->copy();
+        return $this->recommendForDetails(
+            $user,
+            $activity->category,
+            $date,
+            $activity->duration_minutes,
+            $this->gapSinceLastSameCategory($user, $activity, $date),
+            $excludedHours,
+        );
+    }
+
+    public function recommendForDetails(User $user, Category $category, Carbon $date, int $duration, float $gapHours = self::DEFAULT_GAP_HOURS, array $excludedHours = []): array
+    {
         $day = $date->copy()->startOfDay();
 
         return $this->requestRecommendations($user, [
-            'category' => $activity->category->value,
+            'category' => $category->value,
             'day_of_week' => $day->dayOfWeekIso - 1,
-            'duration_min' => $activity->duration_minutes,
+            'duration_min' => $duration,
             'schedule_density' => $this->scheduleDensity($user, $day),
-            'gap_since_last_same_category_hrs' => $this->gapSinceLastSameCategory($user, $activity, $date),
+            'gap_since_last_same_category_hrs' => $gapHours,
+            'exclude_hours' => array_values(array_unique(array_map('intval', $excludedHours))),
         ]);
     }
 
@@ -62,6 +76,12 @@ class RecommendationService
      */
     private function requestRecommendations(User $user, array $payload): array
     {
+        $payload['user_feedback'] = $this->feedback->for(
+            $user,
+            (string) $payload['category'],
+            now(),
+        );
+
         try {
             $response = Http::baseUrl(config('services.slot_recommender.url'))
                 ->timeout(5)

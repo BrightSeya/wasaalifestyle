@@ -1,4 +1,5 @@
 import api
+import upstream_cold_start
 import pytest
 
 
@@ -42,7 +43,7 @@ def valid_body(**overrides):
     return body
 
 
-def test_commitment_risk_is_unavailable_by_default(client, monkeypatch):
+def test_commitment_risk_is_unavailable_when_operator_disables_the_model(client, monkeypatch):
     monkeypatch.setattr(api, "risk_model_enabled", False)
     monkeypatch.setattr(api, "risk_model_bundle", None)
     monkeypatch.setattr(api, "risk_model_card", None)
@@ -63,6 +64,54 @@ def test_commitment_risk_is_unavailable_when_enabled_without_artifact(client, mo
     assert response.status_code == 503
 
 
+def test_upstream_synthetic_artifacts_need_explicit_prototype_allowance():
+    card = {
+        "model": "upstream model",
+        "evidence_type": "synthetic-upstream",
+        "model_version": "upstream-synthetic-abc123",
+    }
+    bundle = {
+        "model_type": "upstream-synthetic-cold-start-v1",
+        "features": api.RISK_FEATURES,
+        "version": "upstream-synthetic-abc123",
+    }
+
+    assert not api.risk_artifact_supported(card, bundle, allow_synthetic=False)
+    assert api.risk_artifact_supported(card, bundle, allow_synthetic=True)
+
+
+def test_synthetic_model_bundle_cannot_mismatch_its_card():
+    card = {
+        "model": "upstream model",
+        "evidence_type": "synthetic-upstream",
+        "model_version": "upstream-synthetic-abc123",
+    }
+    bundle = {
+        "model_type": "upstream-synthetic-cold-start-v1",
+        "features": api.RISK_FEATURES,
+        "version": "other-version",
+    }
+
+    assert not api.risk_artifact_supported(card, bundle, allow_synthetic=True)
+
+
+def test_upstream_cold_start_model_produces_labeled_prototype_estimate(client, monkeypatch):
+    bundle, card = upstream_cold_start.train_upstream_cold_start()
+    monkeypatch.setattr(api, "risk_model_enabled", True)
+    monkeypatch.setattr(api, "risk_model_bundle", bundle)
+    monkeypatch.setattr(api, "risk_model_card", card)
+
+    response = client.post("/noshow/predict", json=valid_body())
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert 0 <= body["probability"] <= 1
+    assert body["model"]["evidence_type"] == "synthetic-upstream"
+    assert body["model"]["prototype_only"] is True
+    assert body["model"]["version"] == "upstream-synthetic-c40599197b05"
+    assert card["user_facing_predictions_enabled"] is True
+
+
 def test_prediction_returns_probability_factors_and_version_without_identifiers(client, enabled_model):
     response = client.post("/noshow/predict", json=valid_body())
 
@@ -70,7 +119,12 @@ def test_prediction_returns_probability_factors_and_version_without_identifiers(
     body = response.get_json()
     assert body["probability"] == 0.7312
     assert body["factors"][0]["feature"] == "prior_missed_rate"
-    assert body["model"] == {"name": "test model", "version": "synthetic-test"}
+    assert body["model"] == {
+        "name": "test model",
+        "version": "synthetic-test",
+        "evidence_type": None,
+        "prototype_only": False,
+    }
     assert "user_id" not in body
     assert "schedule_id" not in body
 

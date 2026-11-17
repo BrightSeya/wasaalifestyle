@@ -23,6 +23,7 @@ prepare_dataset = importlib.util.module_from_spec(PREPARE_SPEC)
 assert PREPARE_SPEC.loader is not None
 sys.modules[PREPARE_SPEC.name] = prepare_dataset
 PREPARE_SPEC.loader.exec_module(prepare_dataset)
+import upstream_cold_start
 
 
 def synthetic_dataset(size=100):
@@ -79,6 +80,9 @@ def test_train_calibrate_evaluate_and_save_a_synthetic_test_artifact(tmp_path):
 
     assert report["baseline"]["status"] == "computed"
     assert model_card["evidence_type"] == "synthetic"
+    assert model_card["model_source"] == train_model.UPSTREAM_MODEL_SOURCE
+    assert "Wasaa-specific pre-event feature schema" in model_card["model_source_adaptation"]
+    assert model_card["selection"]["calibration"].startswith("upstream Platt sigmoid")
     assert model_card["user_facing_predictions_enabled"] is False
     assert model_card["split"]["test_from"] == pd.to_datetime(report["baseline"]["split_at"], utc=True).isoformat()
     assert set(model_card["held_out_metrics"]) == {"roc_auc", "precision", "recall", "f1", "accuracy", "brier_score"}
@@ -95,6 +99,54 @@ def test_train_calibrate_evaluate_and_save_a_synthetic_test_artifact(tmp_path):
     factors = train_model.explain_factors(restored, dataset[train_model.FEATURES].iloc[0].to_dict())
     assert len(factors) <= 3
     assert all(factor["log_odds_contribution"] > 0 for factor in factors)
+
+
+def test_upstream_model_pipeline_and_platt_calibration_are_adapted():
+    pipeline = train_model._new_pipeline()
+    classifier = pipeline.named_steps["classifier"]
+
+    assert isinstance(classifier, train_model.LogisticRegression)
+    assert classifier.get_params()["max_iter"] == 2000
+    assert train_model._platt_calibrator(np.array([0.2, 0.8]), np.array([0, 1])).C == 1e6
+
+
+def test_upstream_synthetic_model_trains_and_scores_cold_start_wasaa_features():
+    bundle, card = upstream_cold_start.train_upstream_cold_start()
+    row = {
+        "category": "work",
+        "priority": "medium",
+        "weekday": 5,
+        "scheduled_hour": 14,
+        "duration_minutes": 60.0,
+        "lead_hours": 24.0,
+        "prior_labeled_count": 8,
+        "prior_missed_rate": 0.25,
+        "prior_same_category_labeled_count": 2,
+        "prior_same_category_missed_rate": 0.5,
+    }
+
+    adapted = upstream_cold_start.adapt_wasaa_features(bundle, pd.DataFrame([row]))
+    probabilities = train_model.predict_probability(bundle, pd.DataFrame([row]))
+    factors = train_model.explain_factors(bundle, row)
+
+    assert card["evidence_type"] == "synthetic-upstream"
+    assert card["split"]["fit_rows"] + card["split"]["validation_rows"] + card["split"]["held_out_rows"] == 21333
+    assert "CANCELLED" in card["target"]
+    assert adapted.loc[0, "prior_bookings"] == 8
+    assert adapted.loc[0, "prior_no_shows"] == 2
+    assert adapted.loc[0, "prior_no_show_rate"] == 0.25
+    assert adapted.loc[0, "category"] == "__WASAA_CATEGORY_UNMAPPED__"
+    assert adapted.loc[0, "total_amount_kes"] == bundle["neutral_values"]["total_amount_kes"]
+    assert len(probabilities) == 1 and 0 <= probabilities[0] <= 1
+    assert all(factor["feature"] in train_model.FEATURES for factor in factors)
+
+
+def test_upstream_training_rejects_unpinned_or_modified_dataset(tmp_path):
+    altered_data = tmp_path / "bookings.csv"
+    altered_data.write_text("created_at,did_not_show\n2026-01-01,0\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="SHA-256"):
+        upstream_cold_start.train_upstream_cold_start(altered_data)
 
 
 def test_training_rejects_post_event_columns():

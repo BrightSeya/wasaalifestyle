@@ -30,7 +30,7 @@ The Flask endpoint uses a synthetic test model in its test client, while Laravel
 
 ## Manual browser checks
 
-Run these separately from the automated tests, in a local or dedicated test environment with a test account and synthetic test records. Do not enable predictions on Azure or another production environment for this checklist. The current Laravel risk flag is off by default, the alert threshold is unset, and the no-show model is disabled by default. Generating a real risk alert requires an approved model and a threshold supported by its evaluation.
+Run these separately from the automated tests, in a local or dedicated test environment with a test account and synthetic test records. The cold-start service is available by default, but each account must explicitly consent at signup or enable the feature in Settings. Prototype alerts are labelled synthetic and may be inaccurate; do not interpret synthetic test results as Wasaa-user performance. The default alert threshold is configurable and still requires evaluation against Wasaa outcomes.
 
 For a browser-only UI smoke check, seed a synthetic alert in the local test database. In `web`, open Tinker with `php artisan tinker` and run the following, replacing the email with your local test account:
 

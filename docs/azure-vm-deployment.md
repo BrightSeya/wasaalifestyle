@@ -108,9 +108,9 @@ sudo systemctl start wasaa-scheduler.service
 sudo journalctl -u wasaa-scheduler.service -n 50 --no-pager
 ```
 
-The command exits without model requests or alerts unless Laravel's `COMMITMENT_RISK_ENABLED` and a valid `COMMITMENT_RISK_ALERT_THRESHOLD` are deliberately configured. Both remain disabled/unset until evaluation approval. When disabled, ordinary schedule CRUD and conflict handling remain available.
+The systemd unit prepares and loads the labelled synthetic cold-start model. Laravel risk assessments are available when `COMMITMENT_RISK_ENABLED=true`, but each user must opt in at signup or in Settings; alert delivery also requires the user's in-app alert preference and an assessment above `COMMITMENT_RISK_ALERT_THRESHOLD` (default `0.75`). Estimates and alerts clearly identify the synthetic prototype and must not be presented as validated Wasaa accuracy.
 
-To disable the add-on, set `COMMITMENT_RISK_ENABLED=false` and leave `COMMITMENT_RISK_ALERT_THRESHOLD` empty in the Laravel `.env`; in a systemd override set `WASAA_RISK_MODEL_ENABLED=false`. Then run `php artisan optimize:clear`, `php artisan config:cache`, and `sudo systemctl restart wasaa-recommender`. This does not disable ordinary schedule creation, editing, conflict checking, or the existing slot recommender. Do not enable either risk flag or set a threshold until the approved-real artifact and its evaluation have been reviewed.
+To disable the add-on globally, set `COMMITMENT_RISK_ENABLED=false` in Laravel's `.env` and `WASAA_RISK_MODEL_ENABLED=false` in a systemd override. To disable it for one account, turn off **No-show predictions and learning** in Settings. After changing server values, run `php artisan optimize:clear`, `php artisan config:cache`, and `sudo systemctl restart wasaa-recommender`. These controls do not disable ordinary schedule creation, editing, conflict checking, or the slot recommender.
 
 ## Nginx and Laravel
 
@@ -144,8 +144,8 @@ DB_HOST=127.0.0.1
 DB_DATABASE=wasaa_lifestyle
 DB_USERNAME=wasaa_app
 SLOT_RECOMMENDER_URL=http://127.0.0.1:5001
-COMMITMENT_RISK_ENABLED=false
-COMMITMENT_RISK_ALERT_THRESHOLD=
+COMMITMENT_RISK_ENABLED=true
+COMMITMENT_RISK_ALERT_THRESHOLD=0.75
 ```
 
 Also configure a real SMTP provider and sender (`MAIL_*`) before public registration. `MAIL_MAILER=log` writes verification and recovery messages to logs instead of sending them. Set Google OAuth credentials and register the exact HTTPS callback URI with Google before enabling Calendar connections.
@@ -203,4 +203,4 @@ Keep real IP addresses, user details, tokens, and raw model data out of this rec
 
 The Azure VM has served the app over its public IP, and the recommender health endpoint has returned `model_loaded: true`. Domain DNS and HTTPS, production SMTP delivery, and Google OAuth with the final HTTPS callback remain separate setup tasks. Until HTTPS and mail are configured and verified, treat the IP-hosted site as a visual demo only.
 
-The commitment-risk model is not currently deployed or enabled. `WASAA_RISK_MODEL_ENABLED` remains false in the tracked systemd template; Laravel's `COMMITMENT_RISK_ENABLED` is false by default and its alert threshold is unset. The live VM's NSG and scheduler timer have not been independently verified from this repository workspace.
+The tracked configuration now prepares and enables the synthetic commitment-risk cold start, with a per-user consent gate in Laravel. This repository workspace does not verify the live VM's environment, NSG, or scheduler timer; verify those separately before relying on deployment behavior.

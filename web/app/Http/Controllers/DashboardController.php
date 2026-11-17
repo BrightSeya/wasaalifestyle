@@ -34,7 +34,7 @@ class DashboardController extends Controller
             'upcomingEntryCount' => $upcomingEntries->count(),
             'completionByDay' => ActivityStats::completionByDay($recentLogs, self::OVERVIEW_DAYS, $today),
             'hasActivityHistory' => $recentLogs->isNotEmpty(),
-            'pendingRecommendationCount' => $user->recommendations()->where('status', 'pending')->count(),
+            'recommendationActivityCount' => $user->activities()->count(),
             'unreadNotificationCount' => $user->notifications()->where('is_read', false)->count(),
         ]);
     }

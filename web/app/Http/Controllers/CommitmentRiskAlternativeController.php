@@ -40,7 +40,7 @@ class CommitmentRiskAlternativeController extends Controller
             ->where('status', 'pending')
             ->exists();
         if ($pending) {
-            return to_route('recommendations.index')->with('status', 'You already have pending alternatives for this commitment.');
+            return to_route('recommendations.index', ['type' => 'alerts'])->with('status', 'You already have pending alternatives for this commitment.');
         }
 
         $result = $recommendations->recommendForSchedule($request->user(), $schedule, $occurrenceStart);
@@ -92,6 +92,6 @@ class CommitmentRiskAlternativeController extends Controller
             return back()->with('error', 'No conflict-free future alternatives were available for this commitment.');
         }
 
-        return to_route('recommendations.index')->with('status', 'Conflict-checked alternatives are ready. Choose one to move this commitment.');
+        return to_route('recommendations.index', ['type' => 'alerts'])->with('status', 'Conflict-checked alternatives are ready. Choose one to move this commitment.');
     }
 }

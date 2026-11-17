@@ -6,6 +6,9 @@
     <meta name="theme-color" content="#f7f6f3">
     <meta name="description" content="Plan a week that fits your routines, availability, and real-life commitments with WasaaLifestyle.">
     <title>WasaaLifestyle | Make room for what matters</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Danfo&display=swap" rel="stylesheet">
     <script src="{{ asset('theme.js') }}"></script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -14,11 +17,9 @@
 
     <header class="landing-header sticky top-0 z-30 border-b border-white/70 bg-[#f7f6f3]/90 backdrop-blur-xl">
         <div class="mx-auto flex min-h-24 w-full max-w-7xl items-center justify-between gap-3 px-5 py-5 sm:min-h-28 sm:px-8 lg:px-10">
-        <a href="{{ route('home') }}" class="inline-flex items-center gap-3 font-bold tracking-tight text-gray-950">
-            <span class="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-300 via-brand to-orange-400 text-amber-950 shadow-sm">
-                <svg aria-hidden="true" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h16M6.5 14a5.5 5.5 0 0 1 11 0M12 3v2M4.9 6l1.5 1.5M19.1 6l-1.5 1.5"/><path d="M8.5 17v2m7-2v2"/></svg>
-            </span>
-            <span class="text-base sm:text-lg">Wasaa<span class="hidden sm:inline">Lifestyle</span></span>
+        <a href="{{ route('home') }}" class="inline-flex items-center gap-2 text-gray-950">
+            <svg aria-hidden="true" class="h-10 w-10 shrink-0 text-amber-800 sm:h-11 sm:w-11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h16M6.5 14a5.5 5.5 0 0 1 11 0M12 3v2M4.9 6l1.5 1.5M19.1 6l-1.5 1.5"/><path d="M8.5 17v2m7-2v2"/></svg>
+            <span class="flex flex-col items-start"><span class="font-danfo text-4xl leading-[.82] tracking-wide">WASAA</span><span class="mt-1.5 text-[8px] font-semibold uppercase tracking-[.14em] text-gray-600">Make room for life</span></span>
         </a>
 
         <nav class="hidden items-center gap-7 text-sm font-medium text-gray-600 md:flex" aria-label="Page">

@@ -4,9 +4,11 @@ namespace App\Services;
 
 use App\Models\Schedule;
 use App\Models\ScheduleOccurrenceOutcome;
+use App\Models\ActivityLog;
 use App\Models\ScheduleRiskAssessment;
 use App\Models\User;
 use App\Support\Occurrence;
+use App\Support\UserPreferences;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -23,6 +25,12 @@ class CommitmentRiskAssessmentService
         $ownedSchedule = $user->schedules()->find($schedule->getKey());
         if (! $ownedSchedule) {
             return ['status' => 'not_owned'];
+        }
+
+        if (! UserPreferences::fromArray($user->preferences)->commitmentRiskEnabled) {
+            $this->invalidate($ownedSchedule, $occurrenceStart);
+
+            return ['status' => 'disabled'];
         }
 
         if (! config('services.commitment_risk.enabled')) {
@@ -47,11 +55,6 @@ class CommitmentRiskAssessmentService
         }
 
         $featureData = $this->featuresFor($user, $ownedSchedule, $occurrence);
-        if ($featureData === null) {
-            $this->invalidate($ownedSchedule, $occurrence->start);
-
-            return ['status' => 'no_history'];
-        }
 
         $scheduleSnapshot = $ownedSchedule->getRawOriginal();
 
@@ -98,7 +101,7 @@ class CommitmentRiskAssessmentService
         return ['status' => 'assessed', 'assessment' => $assessment];
     }
 
-    /** @return array<string, int|float|string|null>|null */
+    /** @return array<string, int|float|string|null> */
     private function featuresFor(User $user, Schedule $schedule, Occurrence $occurrence): ?array
     {
         $historyQuery = ScheduleOccurrenceOutcome::query()
@@ -113,16 +116,33 @@ class CommitmentRiskAssessmentService
             ->selectRaw("COUNT(*) as outcome_count, SUM(CASE WHEN schedule_occurrence_outcomes.outcome = 'missed' THEN 1 ELSE 0 END) as missed_count")
             ->first();
 
-        if (! $history || (int) $history->outcome_count === 0) {
-            return null;
-        }
-
         $sameCategory = (clone $historyQuery)
             ->where('schedules.category', $schedule->category->value)
             ->selectRaw("COUNT(*) as outcome_count, SUM(CASE WHEN schedule_occurrence_outcomes.outcome = 'missed' THEN 1 ELSE 0 END) as missed_count")
             ->first();
-        $historyCount = (int) $history->outcome_count;
-        $sameCategoryCount = (int) ($sameCategory->outcome_count ?? 0);
+
+        // Activity-page feedback is also a valid, user-entered outcome signal.
+        // Only outcomes entered before the target starts are included; skipped rows are excluded.
+        $activityHistoryQuery = ActivityLog::query()
+            ->join('activities', 'activities.id', '=', 'activity_logs.activity_id')
+            ->where('activity_logs.user_id', $user->getKey())
+            ->whereIn('activity_logs.status', ['completed', 'missed'])
+            ->where('activity_logs.scheduled_for', '<', $occurrence->start)
+            ->where('activity_logs.updated_at', '<', $occurrence->start);
+
+        $activityHistory = (clone $activityHistoryQuery)
+            ->selectRaw("COUNT(*) as outcome_count, SUM(CASE WHEN activity_logs.status = 'missed' THEN 1 ELSE 0 END) as missed_count")
+            ->first();
+
+        $activitySameCategory = (clone $activityHistoryQuery)
+            ->where('activities.category', $schedule->category->value)
+            ->selectRaw("COUNT(*) as outcome_count, SUM(CASE WHEN activity_logs.status = 'missed' THEN 1 ELSE 0 END) as missed_count")
+            ->first();
+
+        $historyCount = (int) ($history->outcome_count ?? 0) + (int) ($activityHistory->outcome_count ?? 0);
+        $historyMissed = (int) ($history->missed_count ?? 0) + (int) ($activityHistory->missed_count ?? 0);
+        $sameCategoryCount = (int) ($sameCategory->outcome_count ?? 0) + (int) ($activitySameCategory->outcome_count ?? 0);
+        $sameCategoryMissed = (int) ($sameCategory->missed_count ?? 0) + (int) ($activitySameCategory->missed_count ?? 0);
         $createdAt = Carbon::parse($schedule->created_at);
         $durationMinutes = ($occurrence->end->getTimestamp() - $occurrence->start->getTimestamp()) / 60;
 
@@ -134,11 +154,11 @@ class CommitmentRiskAssessmentService
             'duration_minutes' => $durationMinutes,
             'lead_hours' => ($occurrence->start->getTimestamp() - $createdAt->getTimestamp()) / 3600,
             'prior_labeled_count' => $historyCount,
-            'prior_missed_rate' => (int) $history->missed_count / $historyCount,
+            'prior_missed_rate' => $historyCount === 0 ? null : $historyMissed / $historyCount,
             'prior_same_category_labeled_count' => $sameCategoryCount,
             'prior_same_category_missed_rate' => $sameCategoryCount === 0
                 ? null
-                : (int) $sameCategory->missed_count / $sameCategoryCount,
+                : $sameCategoryMissed / $sameCategoryCount,
         ];
     }
 

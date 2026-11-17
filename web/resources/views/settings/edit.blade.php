@@ -180,11 +180,21 @@
                 <h2 class="mb-4 text-sm font-semibold text-gray-700">Notification Alerts</h2>
 
                 <div class="space-y-3">
+                    <label class="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white p-3">
+                        <span>
+                            <span class="block text-sm font-medium">No-show predictions and learning</span>
+                            <span class="block text-xs leading-5 text-gray-500">Use your completed and missed activity outcomes to estimate risk and personalize your future estimates. Your outcome history is not pooled into other users' predictions. The cold-start model uses synthetic booking data and may be inaccurate. Turning this off stops future predictions and alerts. You can change this at any time.</span>
+                        </span>
+                        <input type="checkbox" name="commitment_risk_enabled" value="1"
+                               @checked(old('commitment_risk_enabled', $preferences->commitmentRiskEnabled))
+                               class="h-5 w-9 rounded-full border-gray-300 text-brand focus:ring-brand">
+                    </label>
+
                     @foreach ([
                         'notify_conflicts' => ['Schedule Conflict Alerts', 'Notify when double-booking happens', $preferences->notifyConflicts],
                         'notify_daily_summary' => ['Daily Schedule Summary', 'Send morning email preview of the day', $preferences->notifyDailySummary],
                         'notify_recommendations' => ['Recommendation Alerts', 'When optimal slot improvements are found', $preferences->notifyRecommendations],
-                        'notify_commitment_risk' => ['Commitment risk alerts', 'When enabled by the service, get in-app reminders based on your earlier completed and missed commitments. Estimates can be wrong; no email or push alerts are sent.', $preferences->notifyCommitmentRisk],
+                        'notify_commitment_risk' => ['No-show in-app alerts', 'Receive an in-app reminder about an upcoming activity when its estimated risk meets the alert threshold. Requires no-show predictions to be enabled. No email or push alerts are sent.', $preferences->notifyCommitmentRisk],
                     ] as $name => [$title, $description, $current])
                         <label class="flex items-center justify-between gap-4">
                             <span>

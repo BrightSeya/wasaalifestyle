@@ -51,6 +51,54 @@ class RecommendationServiceTest extends TestCase
         });
     }
 
+    public function test_request_sends_only_the_users_recent_completed_and_missed_outcomes(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-16 12:00:00'));
+        Http::fake(['*/predict' => Http::response(['recommendations' => []])]);
+
+        $user = User::factory()->create();
+        $activity = Activity::factory()->for($user)->create(['category' => 'exercise']);
+        $otherCategory = Activity::factory()->for($user)->create(['category' => 'work']);
+        $otherUser = User::factory()->create();
+        $otherUsersActivity = Activity::factory()->for($otherUser)->create(['category' => 'exercise']);
+
+        ActivityLog::factory()->for($activity)->create([
+            'status' => 'completed',
+            'scheduled_for' => Carbon::parse('2026-11-10 10:30:00'),
+        ]);
+        ActivityLog::factory()->for($activity)->create([
+            'status' => 'missed',
+            'scheduled_for' => Carbon::parse('2026-11-10 10:45:00'),
+        ]);
+        ActivityLog::factory()->for($otherCategory)->create([
+            'status' => 'completed',
+            'scheduled_for' => Carbon::parse('2026-11-10 10:15:00'),
+        ]);
+        ActivityLog::factory()->for($activity)->create([
+            'status' => 'skipped',
+            'scheduled_for' => Carbon::parse('2026-11-10 11:00:00'),
+        ]);
+        ActivityLog::factory()->for($otherUsersActivity)->create([
+            'status' => 'completed',
+            'scheduled_for' => Carbon::parse('2026-11-10 10:00:00'),
+        ]);
+
+        $this->service()->recommend($user, $activity, Carbon::parse('2026-11-17')); // Tuesday
+
+        Http::assertSent(function ($request) {
+            $feedback = $request['user_feedback'];
+
+            return array_keys($feedback) === ['1:10']
+                && $feedback['1:10']['category_total'] > 1.9
+                && $feedback['1:10']['category_total'] < 2.0
+                && $feedback['1:10']['category_completed'] > 0.9
+                && $feedback['1:10']['category_completed'] < 1.0
+                && $feedback['1:10']['other_total'] > 0.9
+                && $feedback['1:10']['other_total'] < 1.0
+                && $feedback['1:10']['other_completed'] === $feedback['1:10']['other_total'];
+        });
+    }
+
     public function test_day_of_week_matches_the_wasaa_monday_zero_convention(): void
     {
         Http::fake(['*/predict' => Http::response(['recommendations' => []])]);

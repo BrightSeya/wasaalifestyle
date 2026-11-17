@@ -200,6 +200,24 @@ class ProfileSettingsTest extends TestCase
         $this->assertTrue($user->fresh()->preferences['notify_commitment_risk']);
     }
 
+    public function test_user_can_enable_and_disable_no_show_learning_from_settings(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->put('/settings/preferences', $this->validPreferences([
+            'commitment_risk_enabled' => '1',
+        ]))->assertRedirect(route('settings.edit'));
+
+        $user->refresh();
+        $this->assertTrue($user->preferences['commitment_risk_enabled']);
+        $this->assertNotNull($user->commitment_risk_consent_at);
+
+        $this->actingAs($user)->put('/settings/preferences', $this->validPreferences())
+            ->assertRedirect(route('settings.edit'));
+
+        $this->assertFalse($user->fresh()->preferences['commitment_risk_enabled']);
+    }
+
     public function test_peak_end_hour_must_be_after_peak_start_hour(): void
     {
         $user = User::factory()->create();

@@ -33,12 +33,13 @@ class SendCommitmentRiskAlerts extends Command
         $alertsCreated = 0;
 
         User::query()
+            ->where('preferences->commitment_risk_enabled', true)
             ->where('preferences->notify_commitment_risk', true)
             ->orderBy('id')
             ->chunkById(100, function ($users) use ($assessments, $occurrences, $from, $to, $now, $threshold, &$alertsCreated) {
                 foreach ($users as $user) {
                     $preferences = UserPreferences::fromArray($user->preferences);
-                    if (! $preferences->notifyCommitmentRisk) {
+                    if (! $preferences->commitmentRiskEnabled || ! $preferences->notifyCommitmentRisk) {
                         continue;
                     }
 
@@ -64,7 +65,9 @@ class SendCommitmentRiskAlerts extends Command
                             [
                                 'schedule_id' => $occurrence->schedule->getKey(),
                                 'type' => 'system_message',
-                                'message' => 'Your upcoming commitment may be at risk based on your previously recorded outcomes. This estimate may be wrong; review your schedule and decide what works for you.',
+                                'message' => str_starts_with($assessment->model_version, 'upstream-synthetic-')
+                                    ? 'Prototype estimate: this reminder uses a model trained on synthetic booking data and may not reflect your patterns. Review your schedule and decide what works for you.'
+                                    : 'Your upcoming commitment may be at risk based on your previously recorded outcomes. This estimate may be wrong; review your schedule and decide what works for you.',
                                 'is_read' => false,
                             ],
                         );

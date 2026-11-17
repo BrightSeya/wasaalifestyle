@@ -59,6 +59,7 @@ Route::middleware(['auth', 'account.active'])->group(function () {
 Route::middleware(['auth', 'account.active', 'verified'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     Route::patch('/notifications/{notification}/dismiss', [NotificationController::class, 'dismiss'])->name('notifications.dismiss');
     Route::post('/notifications/{notification}/alternatives', [CommitmentRiskAlternativeController::class, 'store'])->name('notifications.alternatives');
@@ -82,7 +83,9 @@ Route::middleware(['auth', 'account.active', 'verified'])->group(function () {
     Route::delete('/settings/google-calendar', [GoogleCalendarConnectionController::class, 'disconnect'])->name('settings.google-calendar.disconnect');
 
     Route::get('/recommendations', [RecommendationController::class, 'index'])->name('recommendations.index');
+    Route::post('/recommendations/preview-task', [RecommendationController::class, 'previewTask'])->name('recommendations.preview-task');
     Route::post('/activities/{activity}/recommendations', [RecommendationController::class, 'store'])->name('recommendations.store');
+    Route::post('/activities/{activity}/recommendations/choose', [RecommendationController::class, 'chooseActivitySlot'])->name('recommendations.choose-activity-slot');
     Route::post('/recommendations/{recommendation}/accept', [RecommendationController::class, 'accept'])->name('recommendations.accept');
     Route::post('/recommendations/{recommendation}/dismiss', [RecommendationController::class, 'dismiss'])->name('recommendations.dismiss');
 

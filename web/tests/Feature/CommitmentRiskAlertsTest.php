@@ -30,7 +30,7 @@ class CommitmentRiskAlertsTest extends TestCase
 
     public function test_opted_in_user_gets_one_dismissible_in_app_alert_for_eligible_high_risk_occurrence(): void
     {
-        $user = User::factory()->create(['preferences' => ['notify_commitment_risk' => true]]);
+        $user = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true, 'notify_commitment_risk' => true]]);
         $history = Schedule::factory()->for($user)->create([
             'start_datetime' => Carbon::parse('2026-11-10 09:00'),
             'end_datetime' => Carbon::parse('2026-11-10 10:00'),
@@ -49,7 +49,7 @@ class CommitmentRiskAlertsTest extends TestCase
         Http::fake(['*/noshow/predict' => Http::response([
             'probability' => 0.8,
             'factors' => [],
-            'model' => ['version' => 'evaluated-test-model'],
+            'model' => ['version' => 'upstream-synthetic-test-model'],
         ])]);
 
         Artisan::call('commitment-risk:send-alerts');
@@ -63,6 +63,7 @@ class CommitmentRiskAlertsTest extends TestCase
             'type' => 'system_message',
         ]);
         $alert = $user->notifications()->sole();
+        $this->assertStringContainsString('Prototype estimate', $alert->message);
         $alert->update(['dismissed_at' => now(), 'is_read' => true]);
         Artisan::call('commitment-risk:send-alerts');
         $this->assertDatabaseCount('notifications', 1);
@@ -81,7 +82,7 @@ class CommitmentRiskAlertsTest extends TestCase
 
         Artisan::call('commitment-risk:send-alerts');
         config(['services.commitment_risk.alert_threshold' => null]);
-        $optedIn = User::factory()->create(['preferences' => ['notify_commitment_risk' => true]]);
+        $optedIn = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true, 'notify_commitment_risk' => true]]);
         Schedule::factory()->for($optedIn)->create([
             'start_datetime' => Carbon::parse('2026-11-12 13:00'),
             'end_datetime' => Carbon::parse('2026-11-12 14:00'),
@@ -95,7 +96,7 @@ class CommitmentRiskAlertsTest extends TestCase
 
     public function test_threshold_must_be_met_and_only_alert_window_occurrences_are_assessed(): void
     {
-        $user = User::factory()->create(['preferences' => ['notify_commitment_risk' => true]]);
+        $user = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true, 'notify_commitment_risk' => true]]);
         $history = Schedule::factory()->for($user)->create([
             'start_datetime' => Carbon::parse('2026-11-10 09:00'),
             'end_datetime' => Carbon::parse('2026-11-10 10:00'),
@@ -131,7 +132,7 @@ class CommitmentRiskAlertsTest extends TestCase
     public function test_disabled_model_does_not_assess_or_create_alerts(): void
     {
         config(['services.commitment_risk.enabled' => false]);
-        $user = User::factory()->create(['preferences' => ['notify_commitment_risk' => true]]);
+        $user = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true, 'notify_commitment_risk' => true]]);
         Schedule::factory()->for($user)->create([
             'start_datetime' => Carbon::parse('2026-11-12 13:00'),
             'end_datetime' => Carbon::parse('2026-11-12 14:00'),
@@ -145,15 +146,15 @@ class CommitmentRiskAlertsTest extends TestCase
         $this->assertDatabaseCount('notifications', 0);
     }
 
-    public function test_no_history_and_unavailable_model_do_not_create_assessments_or_alerts(): void
+    public function test_cold_start_request_and_unavailable_model_do_not_create_alerts(): void
     {
-        $noHistoryUser = User::factory()->create(['preferences' => ['notify_commitment_risk' => true]]);
+        $noHistoryUser = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true, 'notify_commitment_risk' => true]]);
         Schedule::factory()->for($noHistoryUser)->create([
             'start_datetime' => Carbon::parse('2026-11-12 13:00'),
             'end_datetime' => Carbon::parse('2026-11-12 14:00'),
         ]);
 
-        $unavailableUser = User::factory()->create(['preferences' => ['notify_commitment_risk' => true]]);
+        $unavailableUser = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true, 'notify_commitment_risk' => true]]);
         $history = Schedule::factory()->for($unavailableUser)->create([
             'start_datetime' => Carbon::parse('2026-11-10 09:00'),
             'end_datetime' => Carbon::parse('2026-11-10 10:00'),
@@ -173,7 +174,7 @@ class CommitmentRiskAlertsTest extends TestCase
 
         Artisan::call('commitment-risk:send-alerts');
 
-        Http::assertSentCount(1);
+        Http::assertSentCount(2);
         $this->assertDatabaseCount('schedule_risk_assessments', 0);
         $this->assertDatabaseCount('notifications', 0);
     }

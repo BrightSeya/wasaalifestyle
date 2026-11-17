@@ -79,19 +79,35 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:5001/retrain -Headers $head
 On success, the endpoint reruns the training pipeline, reloads the model and completion
 lookup into the running process, and returns `cv_f1` and `best_params` from the model card.
 
+### Learning from Wasaa outcomes
+
+Each recommendation request also includes compact outcome counts for that user's weekday
+and hour, derived from the previous 365 days of activity logs and schedule occurrence
+outcomes. Completed outcomes increase the personal suitability estimate; missed outcomes
+decrease it. Skipped and cancelled outcomes are omitted because they do not show that a
+time slot was unsuitable. Feedback decays with a 180-day half-life, and hierarchical
+shrinkage keeps sparse personal history close to the ATUS-trained cold-start model. The
+counts are sent only for the signed-in user and are not pooled across users.
+
+This updates that user's ranking immediately without refitting the Random Forest after
+every event. `POST /retrain` still retrains the population model from ATUS files only; it
+does not use Wasaa outcomes. This separation avoids overfitting tiny, noisy histories and
+keeps one user's schedule data from changing recommendations for everyone else.
+
 ### Private commitment-risk endpoint
 
-`POST /noshow/predict` is separate from the existing slot-recommendation `POST /predict` contract. It accepts only the approved derived feature object (category, priority, weekday, scheduled hour, duration, lead time, and prior recorded-outcome counts/rates). It accepts no user ID, schedule ID, titles, notes, or prototype booking ID.
+`POST /noshow/predict` is separate from the existing slot-recommendation `POST /predict` contract. It accepts only the approved derived feature object (category, priority, weekday, scheduled hour, duration, lead time, and prior recorded-outcome counts/rates). It accepts no user ID, schedule ID, titles, notes, or upstream booking ID. Zero prior outcomes are valid for the synthetic cold-start estimate.
 
-The endpoint is disabled by default in both Flask and the Azure systemd unit. Enable it only after an approved-real model artifact and matching model card have been installed in the private `ml/no-show/models/` directory. Use a systemd override rather than editing the tracked unit:
+Train the prototype artifact from the pinned upstream synthetic dataset with `python ..\no-show\src\upstream_cold_start.py --artifact ..\no-show\models\commitment_risk.joblib --model-card ..\no-show\models\model_card.json`. The API accepts it only when the operator deliberately sets both `WASAA_RISK_MODEL_ENABLED=true` and `WASAA_RISK_ALLOW_SYNTHETIC_MODEL=true`. An approved-real Wasaa artifact is accepted through its own matching model card without the synthetic allowance. Both flags default to false in the Azure unit. Use a systemd override rather than editing the tracked unit:
 
 ```text
 WASAA_RISK_MODEL_ENABLED=true
+WASAA_RISK_ALLOW_SYNTHETIC_MODEL=true
 WASAA_RISK_MODEL_PATH=/var/www/wasaa/ml/no-show/models/commitment_risk.joblib
 WASAA_RISK_MODEL_CARD_PATH=/var/www/wasaa/ml/no-show/models/model_card.json
 ```
 
-Missing, disabled, incompatible, version-mismatched, or synthetic-only artifacts return HTTP 503 without affecting the existing recommender. The current Azure systemd unit binds Gunicorn to `127.0.0.1:5001`; keep port 5001 closed in the VM network security group.
+The upstream cold-start result is explicitly returned as `evidence_type: synthetic-upstream` and `prototype_only: true`. The notification UI labels any corresponding alert as a prototype estimate. The upstream validation threshold and held-out metrics are synthetic and do not establish a Wasaa alert threshold or Wasaa-user accuracy. Leave alerts disabled/unconfigured on Azure unless deliberately staging a labelled demonstration. Missing, disabled, incompatible, or version-mismatched artifacts return HTTP 503 without affecting the existing recommender. The current Azure systemd unit binds Gunicorn to `127.0.0.1:5001`; keep port 5001 closed in the VM network security group.
 
 Request example (illustrative values only):
 

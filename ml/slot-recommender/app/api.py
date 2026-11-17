@@ -9,6 +9,7 @@ import hmac
 import json
 import math
 import os
+import re
 import sys
 import threading
 from pathlib import Path
@@ -62,21 +63,33 @@ RISK_MODEL_CARD_PATH = Path(
         ROOT.parent / "no-show" / "models" / "model_card.json",
     )
 )
-risk_model_enabled = os.environ.get("WASAA_RISK_MODEL_ENABLED", "false").strip().lower() == "true"
+risk_model_enabled = os.environ.get("WASAA_RISK_MODEL_ENABLED", "true").strip().lower() == "true"
 risk_model_bundle = None
 risk_model_card = None
+allow_synthetic_risk_model = os.environ.get("WASAA_RISK_ALLOW_SYNTHETIC_MODEL", "true").strip().lower() == "true"
+
+
+def risk_artifact_supported(card, bundle, *, allow_synthetic=False):
+    version = card.get("model_version") or card.get("git_commit") or card.get("evaluation_date_utc")
+    common = (
+        isinstance(card.get("model"), str)
+        and bundle.get("features") == RISK_FEATURES
+        and bundle.get("version") == version
+    )
+    if card.get("evidence_type") == "approved-real":
+        return common
+    return (
+        allow_synthetic
+        and card.get("evidence_type") == "synthetic-upstream"
+        and bundle.get("model_type") == "upstream-synthetic-cold-start-v1"
+        and common
+    )
 
 if risk_model_enabled and RISK_MODEL_PATH.is_file() and RISK_MODEL_CARD_PATH.is_file():
     try:
         candidate_card = json.loads(RISK_MODEL_CARD_PATH.read_text(encoding="utf-8"))
         candidate_bundle = joblib.load(RISK_MODEL_PATH)
-        candidate_version = candidate_card.get("git_commit") or candidate_card.get("evaluation_date_utc")
-        if (
-            candidate_card.get("evidence_type") == "approved-real"
-            and isinstance(candidate_card.get("model"), str)
-            and candidate_bundle.get("features") == RISK_FEATURES
-            and candidate_bundle.get("version") == candidate_version
-        ):
+        if risk_artifact_supported(candidate_card, candidate_bundle, allow_synthetic=allow_synthetic_risk_model):
             risk_model_bundle = candidate_bundle
             risk_model_card = candidate_card
     except Exception:
@@ -132,6 +145,42 @@ def validate_request(data):
     return None
 
 
+def validate_user_feedback(feedback):
+    """Validate compact per-user outcome counts before they affect recommendations."""
+    if feedback is None:
+        return None
+    if not isinstance(feedback, dict) or len(feedback) > 168:
+        return "user_feedback must be an object with at most 168 weekday-hour bins."
+
+    expected_fields = {"category_completed", "category_total", "other_completed", "other_total"}
+    for key, counts in feedback.items():
+        if not isinstance(key, str) or not re.fullmatch(r"[0-6]:(?:[0-9]|1[0-9]|2[0-3])", key):
+            return "user_feedback contains an unsupported weekday-hour bin."
+        if not isinstance(counts, dict) or set(counts) != expected_fields:
+            return "user_feedback contains unsupported count fields."
+        for value in counts.values():
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                return "user_feedback counts must be finite numbers."
+            if value < 0 or value > 1_000_000:
+                return "user_feedback counts are outside the supported range."
+        if counts["category_completed"] > counts["category_total"]:
+            return "Category completions cannot exceed category outcomes."
+        if counts["other_completed"] > counts["other_total"]:
+            return "Other completions cannot exceed other outcomes."
+
+    return None
+
+
+def validate_excluded_hours(hours):
+    if hours is None:
+        return None
+    if not isinstance(hours, list) or len(hours) > 24:
+        return "exclude_hours must be a list of at most 24 hour values."
+    if any(not isinstance(hour, int) or isinstance(hour, bool) or not 0 <= hour <= 23 for hour in hours):
+        return "exclude_hours values must be integers from 0 to 23."
+    return None
+
+
 @app.post("/predict")
 def predict():
     with MODEL_LOCK:
@@ -145,9 +194,19 @@ def predict():
     if error:
         return jsonify({"error": error}), 400
 
+    user_feedback = data.get("user_feedback", {})
+    error = validate_user_feedback(user_feedback)
+    if error:
+        return jsonify({"error": error}), 400
+
+    excluded_hours = data.get("exclude_hours", [])
+    error = validate_excluded_hours(excluded_hours)
+    if error:
+        return jsonify({"error": error}), 400
+
     request_body = {field: data[field] for field in REQUEST_FIELDS}
     score_fn = lambda df: active_model.predict_proba(df)[:, 1]  # noqa: E731
-    top = top_k_hours(request_body, active_lookup, score_fn, k=TOP_K)
+    top = top_k_hours(request_body, active_lookup, score_fn, k=TOP_K, user_feedback=user_feedback, excluded_hours=excluded_hours)
 
     recommendations = [
         {
@@ -161,6 +220,7 @@ def predict():
     return jsonify({
         "category": data["category"],
         "day_of_week": data["day_of_week"],
+        "prediction_basis": "atus_prior_plus_user_history" if user_feedback else "atus_cold_start",
         "recommendations": recommendations,
     })
 
@@ -248,7 +308,9 @@ def predict_commitment_risk():
         "factors": factors,
         "model": {
             "name": risk_model_card.get("model"),
-            "version": risk_model_card.get("git_commit") or risk_model_card.get("evaluation_date_utc"),
+            "version": risk_model_card.get("model_version") or risk_model_card.get("git_commit") or risk_model_card.get("evaluation_date_utc"),
+            "evidence_type": risk_model_card.get("evidence_type"),
+            "prototype_only": risk_model_card.get("evidence_type") == "synthetic-upstream",
         },
     })
 

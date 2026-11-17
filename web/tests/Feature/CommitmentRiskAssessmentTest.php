@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Schedule;
 use App\Models\ScheduleOccurrenceOutcome;
+use App\Models\Activity;
+use App\Models\ActivityLog;
 use App\Models\User;
 use App\Services\CommitmentRiskAssessmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -64,7 +66,7 @@ class CommitmentRiskAssessmentTest extends TestCase
 
     public function test_owner_assessment_sends_only_approved_features_and_persists_minimal_result(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true]]);
         $past = $this->schedule($user, '2026-11-10 09:00', '2026-11-10 10:00', [
             'created_at' => Carbon::parse('2026-11-01 09:00'),
         ]);
@@ -105,6 +107,54 @@ class CommitmentRiskAssessmentTest extends TestCase
         $this->assertArrayNotHasKey('title', $requestData);
     }
 
+    public function test_assessment_uses_the_users_activity_page_outcomes_as_personal_history(): void
+    {
+        $user = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true]]);
+        $exercise = Activity::factory()->for($user)->create(['category' => 'exercise']);
+        ActivityLog::factory()->for($exercise)->create([
+            'status' => 'missed',
+            'scheduled_for' => Carbon::parse('2026-11-10 09:00'),
+            'updated_at' => Carbon::parse('2026-11-10 10:00'),
+        ]);
+        ActivityLog::factory()->for($exercise)->create([
+            'status' => 'skipped',
+            'scheduled_for' => Carbon::parse('2026-11-10 10:00'),
+            'updated_at' => Carbon::parse('2026-11-10 11:00'),
+        ]);
+        $target = $this->schedule($user, '2026-11-14 14:00', '2026-11-14 15:00', ['category' => 'exercise']);
+        Http::fake(['*/noshow/predict' => Http::response($this->response(), 200)]);
+
+        $result = app(CommitmentRiskAssessmentService::class)->assess(
+            $user,
+            $target,
+            Carbon::parse('2026-11-14 14:00'),
+        );
+
+        $this->assertSame('assessed', $result['status']);
+        $requestData = Http::recorded()->first()[0]->data();
+        $this->assertSame(1, $requestData['prior_labeled_count']);
+        $this->assertEquals(1.0, $requestData['prior_missed_rate']);
+        $this->assertSame(1, $requestData['prior_same_category_labeled_count']);
+        $this->assertEquals(1.0, $requestData['prior_same_category_missed_rate']);
+    }
+
+    public function test_user_without_no_show_consent_is_not_assessed(): void
+    {
+        $user = User::factory()->create();
+        $schedule = $this->schedule($user, '2026-11-14 14:00', '2026-11-14 15:00');
+        Http::fake();
+
+        $result = app(CommitmentRiskAssessmentService::class)->assess(
+            $user,
+            $schedule,
+            Carbon::parse('2026-11-14 14:00'),
+        );
+
+        $this->assertSame('disabled', $result['status']);
+        Http::assertNothingSent();
+        $this->assertDatabaseCount('schedule_risk_assessments', 0);
+    }
+
     public function test_only_owned_future_occurrences_are_assessed(): void
     {
         $owner = User::factory()->create();
@@ -123,11 +173,11 @@ class CommitmentRiskAssessmentTest extends TestCase
         $this->assertDatabaseCount('schedule_risk_assessments', 0);
     }
 
-    public function test_missing_history_returns_without_request_or_assessment(): void
+    public function test_new_user_can_be_assessed_with_empty_history_for_cold_start_model(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true]]);
         $schedule = $this->schedule($user, '2026-11-14 14:00', '2026-11-14 15:00');
-        Http::fake();
+        Http::fake(['*/noshow/predict' => Http::response($this->response(), 200)]);
 
         $result = app(CommitmentRiskAssessmentService::class)->assess(
             $user,
@@ -135,14 +185,17 @@ class CommitmentRiskAssessmentTest extends TestCase
             Carbon::parse('2026-11-14 14:00'),
         );
 
-        $this->assertSame('no_history', $result['status']);
-        Http::assertNothingSent();
-        $this->assertDatabaseCount('schedule_risk_assessments', 0);
+        $this->assertSame('assessed', $result['status']);
+        Http::assertSent(fn (Request $request) => $request->data()['prior_labeled_count'] === 0
+            && $request->data()['prior_missed_rate'] === null
+            && $request->data()['prior_same_category_labeled_count'] === 0
+            && $request->data()['prior_same_category_missed_rate'] === null);
+        $this->assertDatabaseCount('schedule_risk_assessments', 1);
     }
 
     public function test_disabled_feature_does_not_call_python_or_leave_a_stale_assessment(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true]]);
         $history = $this->schedule($user, '2026-11-10 09:00', '2026-11-10 10:00');
         $this->addOutcome($history, '2026-11-10 09:00', '2026-11-10 10:00', 'completed');
         $schedule = $this->schedule($user, '2026-11-14 14:00', '2026-11-14 15:00');
@@ -169,7 +222,7 @@ class CommitmentRiskAssessmentTest extends TestCase
 
     public function test_past_wrong_date_and_cancelled_occurrences_are_not_assessed(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true]]);
         $history = $this->schedule($user, '2026-11-10 09:00', '2026-11-10 10:00');
         $this->addOutcome($history, '2026-11-10 09:00', '2026-11-10 10:00', 'completed');
         $future = $this->schedule($user, '2026-11-14 14:00', '2026-11-14 15:00');
@@ -190,7 +243,7 @@ class CommitmentRiskAssessmentTest extends TestCase
 
     public function test_completed_skipped_and_cancelled_occurrences_are_not_assessed(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true]]);
         $history = $this->schedule($user, '2026-11-10 09:00', '2026-11-10 10:00');
         $this->addOutcome($history, '2026-11-10 09:00', '2026-11-10 10:00', 'completed');
         $service = app(CommitmentRiskAssessmentService::class);
@@ -209,7 +262,7 @@ class CommitmentRiskAssessmentTest extends TestCase
 
     public function test_http_failures_and_invalid_payloads_do_not_create_assessments(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true]]);
         $history = $this->schedule($user, '2026-11-10 09:00', '2026-11-10 10:00');
         $this->addOutcome($history, '2026-11-10 09:00', '2026-11-10 10:00', 'completed');
         $schedule = $this->schedule($user, '2026-11-14 14:00', '2026-11-14 15:00');
@@ -234,7 +287,7 @@ class CommitmentRiskAssessmentTest extends TestCase
 
     public function test_schedule_update_invalidates_assessment_and_delete_cascades_it(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true]]);
         $history = $this->schedule($user, '2026-11-10 09:00', '2026-11-10 10:00');
         $this->addOutcome($history, '2026-11-10 09:00', '2026-11-10 10:00', 'completed');
         $schedule = $this->schedule($user, '2026-11-14 14:00', '2026-11-14 15:00');
@@ -254,7 +307,7 @@ class CommitmentRiskAssessmentTest extends TestCase
 
     public function test_schedule_changed_during_request_is_not_saved_as_a_fresh_assessment(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['preferences' => ['commitment_risk_enabled' => true]]);
         $history = $this->schedule($user, '2026-11-10 09:00', '2026-11-10 10:00');
         $this->addOutcome($history, '2026-11-10 09:00', '2026-11-10 10:00', 'completed');
         $schedule = $this->schedule($user, '2026-11-14 14:00', '2026-11-14 15:00');
