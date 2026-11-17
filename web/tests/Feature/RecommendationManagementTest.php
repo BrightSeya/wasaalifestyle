@@ -161,7 +161,7 @@ class RecommendationManagementTest extends TestCase
 
         $response = $this->actingAs($user)->post(route('notifications.alternatives', $alert));
 
-        $response->assertRedirect(route('recommendations.index'));
+        $response->assertRedirect(route('recommendations.index', ['type' => 'alerts']));
         $response->assertSessionHas('status');
         $this->assertDatabaseCount('recommendations', 1);
         $recommendation = Recommendation::sole();
@@ -217,7 +217,7 @@ class RecommendationManagementTest extends TestCase
         ]);
 
         $this->actingAs($user)->post(route('recommendations.accept', $recommendation))
-            ->assertRedirect(route('recommendations.index'))
+            ->assertRedirect(route('recommendations.index', ['type' => 'alerts']))
             ->assertSessionHas('alternative_conflicts');
 
         $this->assertSame($target->toDateTimeString(), $schedule->fresh()->start_datetime->toDateTimeString());
@@ -245,15 +245,15 @@ class RecommendationManagementTest extends TestCase
             'suggested_end' => Carbon::parse('2026-11-12 15:00'),
         ]);
 
-        $this->actingAs($user)->get(route('recommendations.index'))
+        $this->actingAs($user)->get(route('recommendations.index', ['type' => 'alerts']))
             ->assertOk()
-            ->assertSee('Alternative time for this commitment.')
-            ->assertSee('confidence')
-            ->assertSee('Ranked as suitable by the model.')
+            ->assertSee('Commitment alternative')
+            ->assertSee('% match')
+            ->assertSee('Why this suggestion')
             ->assertSee('Move to this time');
         $this->assertSame($target->toDateTimeString(), $schedule->fresh()->start_datetime->toDateTimeString());
         $this->actingAs($user)->post(route('recommendations.accept', $recommendation))
-            ->assertRedirect(route('recommendations.index'))
+            ->assertRedirect(route('recommendations.index', ['type' => 'alerts']))
             ->assertSessionHas('status', 'Your commitment was moved to the selected time.');
 
         $this->assertSame('2026-11-12 14:00:00', $schedule->fresh()->start_datetime->toDateTimeString());
@@ -286,7 +286,7 @@ class RecommendationManagementTest extends TestCase
         ]);
 
         $this->actingAs($user)->post(route('recommendations.accept', $recommendation))
-            ->assertRedirect(route('recommendations.index'))
+            ->assertRedirect(route('recommendations.index', ['type' => 'alerts']))
             ->assertSessionHas('error');
 
         $this->assertSame($changedStart->toDateTimeString(), $schedule->fresh()->start_datetime->toDateTimeString());
@@ -307,7 +307,7 @@ class RecommendationManagementTest extends TestCase
         ]);
 
         $this->actingAs($user)->post(route('recommendations.dismiss', $recommendation))
-            ->assertRedirect(route('recommendations.index'));
+            ->assertRedirect(route('recommendations.index', ['type' => 'alerts']));
 
         $this->assertSame($start->toDateTimeString(), $schedule->fresh()->start_datetime->toDateTimeString());
         $this->assertSame('dismissed', $recommendation->fresh()->status);
@@ -336,7 +336,7 @@ class RecommendationManagementTest extends TestCase
         ]);
 
         $this->actingAs($user)->post(route('recommendations.accept', $recommendation))
-            ->assertRedirect(route('recommendations.index'))
+            ->assertRedirect(route('recommendations.index', ['type' => 'alerts']))
             ->assertSessionHas('status', 'Your commitment was moved to the selected time.');
 
         $this->assertSame($seriesStart->toDateTimeString(), $schedule->fresh()->start_datetime->toDateTimeString());
