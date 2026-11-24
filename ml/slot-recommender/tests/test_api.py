@@ -55,7 +55,7 @@ def test_predict_returns_three_ranked_recommendations(client):
     assert all(0 <= h <= 23 for h in hours)
     assert confidences == sorted(confidences, reverse=True)
     for rec in data["recommendations"]:
-        assert rec["suitable"] == (rec["confidence"] >= 0.5)
+        assert rec["suitable"] == (rec["confidence"] >= api.suitability_threshold)
 
 
 def test_predict_returns_503_when_the_model_is_not_loaded(client, monkeypatch):

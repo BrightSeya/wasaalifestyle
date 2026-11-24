@@ -40,6 +40,16 @@
         </label>
         @error('commitment_risk_consent') <p class="-mt-3 text-xs text-red-600">{{ $message }}</p> @enderror
 
+        <label for="recommendation_personalization_consent" class="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+            <input id="recommendation_personalization_consent" name="recommendation_personalization_consent" type="checkbox" value="1"
+                   @checked(old('recommendation_personalization_consent')) class="mt-1 rounded border-gray-300 text-amber-700 focus:ring-amber-600">
+            <span>
+                <span class="font-semibold">Personalize my time recommendations</span>
+                <span class="mt-1 block text-xs leading-5 text-gray-600">I agree that Wasaa may use my completed and missed activity and schedule outcomes from the past year to adjust my future time recommendations. This history is used for my recommendations and is not pooled with other users. I can change this choice in Settings at any time. If I leave this unchecked, I can still receive general recommendations.</span>
+            </span>
+        </label>
+        @error('recommendation_personalization_consent') <p class="-mt-3 text-xs text-red-600">{{ $message }}</p> @enderror
+
         <button type="submit" class="btn-primary w-full">
             Create account <x-icon name="arrow-right" class="h-4 w-4" />
         </button>

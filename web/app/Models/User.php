@@ -33,6 +33,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'preferences',
         'commitment_risk_consent_at',
+        'recommendation_personalization_consent_at',
     ];
 
     /**
@@ -58,6 +59,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
             'preferences' => 'array',
             'commitment_risk_consent_at' => 'datetime',
+            'recommendation_personalization_consent_at' => 'datetime',
             'session_version' => 'integer',
         ];
     }

@@ -34,7 +34,8 @@ from train_model import explain_factors, predict_probability  # noqa: E402
 import train  # noqa: E402
 
 TOP_K = 3
-CONFIDENCE_THRESHOLD = 0.5
+DEFAULT_SUITABILITY_THRESHOLD = 0.5
+suitability_threshold = DEFAULT_SUITABILITY_THRESHOLD
 
 
 class CommitmentRiskRequest(TypedDict):
@@ -104,6 +105,13 @@ RETRAIN_LOCK = threading.Lock()
 try:
     model = joblib.load(MODEL_PATH)
     lookup = pd.read_csv(LOOKUP_PATH)
+    if MODEL_CARD_PATH.is_file():
+        try:
+            card_threshold = json.loads(MODEL_CARD_PATH.read_text(encoding="utf-8")).get("decision_threshold")
+            if isinstance(card_threshold, (int, float)) and math.isfinite(card_threshold) and 0 <= card_threshold <= 1:
+                suitability_threshold = float(card_threshold)
+        except (OSError, ValueError, TypeError):
+            pass
 except FileNotFoundError:
     pass
 
@@ -184,7 +192,7 @@ def validate_excluded_hours(hours):
 @app.post("/predict")
 def predict():
     with MODEL_LOCK:
-        active_model, active_lookup = model, lookup
+        active_model, active_lookup, active_threshold = model, lookup, suitability_threshold
 
     if active_model is None or active_lookup is None:
         return jsonify({"error": "Model not loaded"}), 503
@@ -212,7 +220,7 @@ def predict():
         {
             "hour": int(row["hour"]),
             "confidence": round(float(row["score"]), 4),
-            "suitable": bool(row["score"] >= CONFIDENCE_THRESHOLD),
+            "suitable": bool(row["score"] >= active_threshold),
         }
         for row in top
     ]
@@ -317,7 +325,7 @@ def predict_commitment_risk():
 
 @app.post("/retrain")
 def retrain():
-    global model, lookup
+    global model, lookup, suitability_threshold
 
     expected_key = os.environ.get("ML_RETRAIN_KEY")
     provided_key = request.headers.get("X-API-Key", "")
@@ -335,13 +343,17 @@ def retrain():
             refreshed_model = joblib.load(MODEL_PATH)
             refreshed_lookup = pd.read_csv(LOOKUP_PATH)
             model_card = json.loads(MODEL_CARD_PATH.read_text(encoding="utf-8"))
+            refreshed_threshold = model_card.get("decision_threshold", DEFAULT_SUITABILITY_THRESHOLD)
+            if not isinstance(refreshed_threshold, (int, float)) or not math.isfinite(refreshed_threshold) or not 0 <= refreshed_threshold <= 1:
+                refreshed_threshold = DEFAULT_SUITABILITY_THRESHOLD
             summary = {
                 "cv_f1": model_card["cv_f1"],
                 "best_params": model_card["best_params"],
+                "decision_threshold": refreshed_threshold,
             }
 
             with MODEL_LOCK:
-                model, lookup = refreshed_model, refreshed_lookup
+                model, lookup, suitability_threshold = refreshed_model, refreshed_lookup, float(refreshed_threshold)
     except Exception:
         app.logger.exception("Slot recommender retraining failed")
         return jsonify({

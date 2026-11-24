@@ -56,7 +56,7 @@ class RecommendationServiceTest extends TestCase
         $this->travelTo(Carbon::parse('2026-11-16 12:00:00'));
         Http::fake(['*/predict' => Http::response(['recommendations' => []])]);
 
-        $user = User::factory()->create();
+        $user = User::factory()->create(['preferences' => ['personalize_recommendations' => true]]);
         $activity = Activity::factory()->for($user)->create(['category' => 'exercise']);
         $otherCategory = Activity::factory()->for($user)->create(['category' => 'work']);
         $otherUser = User::factory()->create();

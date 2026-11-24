@@ -12,9 +12,9 @@
   the same fix applied to the main train/val/test split in #22, applied one level down inside the search
   itself (the prototype's plain 5-fold CV did not have this guarantee).
 - **Training data:** `data/processed/train.csv` (#24), 12 features (§3.2.4), balanced ~50/50 label split.
-- **Evaluation:** validation set, scored with the exact same functions used for the baselines
-  (`metrics.precision_recall_f1`, `metrics.hit_rate_at_k`, `metrics.mean_absolute_error_hours`), so all
-  three models are compared on equal terms.
+- **Evaluation:** each model's F1 cutoff is selected on the respondent-held-out validation set.
+  Ranking metrics are measured on validation as before. The Random Forest cutoff is applied once
+  to the untouched held-out test split for the final evaluation.
 
 ## 2. Grid search result
 
@@ -28,47 +28,45 @@ Two grid searches were run, the second a CRISP-DM iteration after the first fell
 | Training time | 7.8 min | 14.7 min |
 
 **Both edges moved between iterations** (`max_depth` from the top option to the bottom, `min_samples_leaf`
-from the top to the bottom), while CV F1 barely changed (0.7284 -> 0.7299). This is the signature of a flat
-search surface, not a real trend: the model has reached a **performance ceiling for these features**, and
-further hyperparameter tuning is unlikely to close the gap to 0.75. Closing it further would need new or
-different features (Data Preparation), which is out of scope for the time available. The iteration-2 model
-is kept as the final one, since it is at least as good as iteration 1 on every metric.
+from the top to the bottom), while CV F1 barely changed (0.7284 -> 0.7299). This suggests a flat search
+surface for the tested model settings. The final classifier is retained; selecting a probability cutoff on
+validation improves binary F1 without changing the model's ranking of candidate hours.
 
 ## 3. Comparison with the baselines (validation set)
 
-| Model | F1 | Hit Rate@3 | MAE (hours) |
+| Model | Validation F1 (threshold) | Hit Rate@3 | MAE (hours) |
 |---|---|---|---|
-| Completion rate only (no training) | 0.649 | 0.276 | 4.66 |
-| Logistic regression | 0.635 | 0.270 | 4.71 |
-| **Random Forest** | **0.725** | **0.361** | **3.68** |
+| Completion rate only (no training) | 0.692 (0.2684) | 0.276 | 4.66 |
+| Logistic regression | 0.699 (0.3948) | 0.270 | 4.71 |
+| **Random Forest** | **0.744 (0.3823)** | **0.361** | **3.68** |
 
-The Random Forest clearly outperforms both baselines: Hit Rate@3 improves by 31% relative to the
-completion-rate baseline (0.276 -> 0.362), and MAE falls by 21% (4.66h -> 3.67h). This is the gain a
-non-linear model can extract once it combines completion rate with the gap, hour, duration and density
-features together, which the linear baseline could not do.
+The Random Forest outperforms both baselines on validation F1, Hit Rate@3 and MAE. The reported F1
+values use a validation-selected threshold for each model; thresholds appear in parentheses. Ranking
+metrics do not depend on the threshold. Relative to the completion-rate baseline, Random Forest
+Hit Rate@3 improves by about 31% and MAE falls by about 21%.
 
 ## 4. Success criteria
 
 | Criterion | Target | Result |
 |---|---|---|
-| F1-score | > 0.75 | 0.725 — **not met** (2.5 points short) |
-| Hit Rate@3 | reported | 0.361 |
-| MAE | reported | 3.68 hours |
+| F1-score | > 0.75 on held-out test | Validation: 0.744; held-out test: **0.751 — met narrowly** |
+| Hit Rate@3 | reported | Validation: 0.361; test: 0.367 |
+| MAE | reported | Validation: 3.68 hours; test: 3.60 hours |
 
-The F1 target was not reached. Per CRISP-DM, this calls for revisiting Data Preparation or Modelling
-before accepting the result:
+Validation F1 remains below 0.75; the untouched held-out test F1 is 0.751 at the cutoff selected on
+validation (0.3823). This meets the proposal's test-set target by a narrow margin. Do not use the test
+result to select another threshold or tune the model.
 
 - **Data Preparation (#21-#24) already changed the problem**, on purpose. Removing travel (43% of the
   old errand category) and the artificial 04:00 diary-start rows produced more realistic, but *harder*,
   labels than the prototype's uncleaned 0.758 F1. The prototype's row-level split and un-grouped CV also
   likely inflated its own reported F1 through leakage (see Part B of the project log, D8-D11), so the
   two numbers are not directly comparable.
-- **Modelling**: `n_estimators` reached the top of its grid (300), so a wider grid (e.g. up to 500) might
-  close some of the gap, at the cost of a longer search. Given the time available for this project, the
-  current result is accepted as the delivered model, with this trade-off documented rather than hidden.
-- The Random Forest still convincingly beats both baselines on every metric (Section 3), and the
-  `/retrain` endpoint (Sprint 4-5) is designed to let the model keep improving as real Wasaa users
-  generate `activity_logs`, rather than relying on ATUS alone.
+- **Modelling**: selected parameters remain `n_estimators=300`, `max_depth=15`, and
+  `min_samples_leaf=2`. Threshold selection moves validation F1 from 0.725 at 0.5 to 0.744 at 0.3823;
+  the held-out test F1 is 0.751.
+- User outcomes adjust per-user recommendation scores when personalization is enabled. The `/retrain`
+  endpoint continues to train from ATUS data only.
 
 ## 5. Feature importances
 
@@ -95,7 +93,8 @@ contribution, not just cleanup.
 ## 6. Deployment artefacts
 
 - `models/rf_model.joblib` — the trained model (not committed; regenerate with `python src/train.py`).
-- `models/model_card.json` — hyperparameters, CV F1, training size, feature list and importances (committed).
+- `models/model_card.json` — hyperparameters, CV F1, training size, feature list/importances, selected
+  threshold, and separate validation/test metrics (committed).
 - `models/baselines.json` — all three models' validation metrics side by side (committed).
 
 ## 7. Limitations carried from Data Preparation

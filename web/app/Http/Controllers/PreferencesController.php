@@ -19,6 +19,10 @@ class PreferencesController extends Controller
             $user->forceFill(['commitment_risk_consent_at' => now()])->save();
         }
 
+        if ($preferences->personalizeRecommendations && ! ($previousPreferences['personalize_recommendations'] ?? false)) {
+            $user->forceFill(['recommendation_personalization_consent_at' => now()])->save();
+        }
+
         return redirect()->route('settings.edit')->with('status', 'Preferences updated.');
     }
 }

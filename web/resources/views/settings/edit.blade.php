@@ -182,6 +182,16 @@
                 <div class="space-y-3">
                     <label class="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white p-3">
                         <span>
+                            <span class="block text-sm font-medium">Personalize time recommendations</span>
+                            <span class="block text-xs leading-5 text-gray-500">Use your completed and missed activity and schedule outcomes from the past year to adjust your recommendations. This history is used for your recommendations and is not pooled with other users. Turn this off at any time; general recommendations will still be available.</span>
+                        </span>
+                        <input type="checkbox" name="personalize_recommendations" value="1"
+                               @checked(old('personalize_recommendations', $preferences->personalizeRecommendations))
+                               class="h-5 w-9 rounded-full border-gray-300 text-brand focus:ring-brand">
+                    </label>
+
+                    <label class="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white p-3">
+                        <span>
                             <span class="block text-sm font-medium">No-show predictions and learning</span>
                             <span class="block text-xs leading-5 text-gray-500">Use your completed and missed activity outcomes to estimate risk and personalize your future estimates. Your outcome history is not pooled into other users' predictions. The cold-start model uses synthetic booking data and may be inaccurate. Turning this off stops future predictions and alerts. You can change this at any time.</span>
                         </span>

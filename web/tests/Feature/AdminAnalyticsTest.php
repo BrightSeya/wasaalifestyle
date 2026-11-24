@@ -35,7 +35,7 @@ class AdminAnalyticsTest extends TestCase
             ->assertSee('Schedules')
             ->assertSee('Activities')
             ->assertSee('0.7299')
-            ->assertSee('0.7246')
+            ->assertSee('0.7442')
             ->assertSee('36.1%')
             ->assertSee('3.68')
             ->assertSee('Completion Rate Baseline')

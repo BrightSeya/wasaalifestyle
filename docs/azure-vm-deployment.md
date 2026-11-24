@@ -144,7 +144,7 @@ DB_HOST=127.0.0.1
 DB_DATABASE=wasaa_lifestyle
 DB_USERNAME=wasaa_app
 SLOT_RECOMMENDER_URL=http://127.0.0.1:5001
-COMMITMENT_RISK_ENABLED=true
+COMMITMENT_RISK_ENABLED=false
 COMMITMENT_RISK_ALERT_THRESHOLD=0.75
 ```
 
@@ -152,7 +152,33 @@ Also configure a real SMTP provider and sender (`MAIL_*`) before public registra
 
 For a temporary visual demo over the VM IP, `APP_URL=http://<static-public-ip>` and `SESSION_SECURE_COOKIE=false` may be needed for assets and cookies. This is HTTP and must not be used for passwords, account creation, or real user data. Move to HTTPS before account testing or sharing the app as a usable service. A separate subdomain can point to the VM without changing a GitHub Pages apex domain.
 
-## Updates and recovery
+## Automatic GitHub deployment
+
+The `CI` workflow deploys each successful push to `main`. It waits for the frontend build, Laravel checks, and ML checks, then runs the deployment on a self-hosted GitHub Actions runner on the Azure VM. The runner label must include `wasaa-prod`. This keeps SSH closed to GitHub-hosted runner address ranges; the runner makes an outbound connection to GitHub.
+
+### One-time setup
+
+1. Confirm the VM is running Ubuntu 24.04 and the manual deployment above is complete. In particular, `/var/www/wasaa` must be a Git checkout of this repository on branch `main`, and the production `.env`, database, and model artifacts must already be in place. Keep `.env` and generated model files outside Git.
+2. On the VM, install the runtime tools used by the workflow: PHP 8.3 and Composer, Node.js 22.12 or newer, Git, and the Laravel PHP extensions. Verify `php -v`, `composer --version`, and `node --version` as the account that will run the runner.
+3. In the GitHub repository, open **Settings → Actions → Runners → New self-hosted runner**, choose Linux x64, and follow GitHub's current download and configuration commands on the VM. Add the custom label `wasaa-prod` when configuring the runner. Registration tokens expire; copy a fresh token from GitHub when configuring and never commit it.
+4. Run the runner as the same VM account that owns `/var/www/wasaa` (typically `azureuser`), and install/start it as a system service using the commands GitHub displays. Do not run it as root. Ensure that account can fetch the private/public repository and write the Laravel `storage/` and `bootstrap/cache/` directories.
+5. Allow that account to run only the service operations in the workflow without a password. Edit sudoers with `sudo visudo` and add a narrowly scoped rule, adjusting the account if needed:
+
+   ```sudoers
+   azureuser ALL=(root) NOPASSWD: /usr/bin/systemctl restart wasaa-recommender, /usr/bin/systemctl reload php8.3-fpm, /usr/bin/systemctl reload nginx
+   ```
+
+   Check command paths with `command -v systemctl`, and ensure sudoers accepts the rule with `sudo visudo -c`.
+6. In GitHub, verify the runner shows **Idle** with labels `self-hosted`, `linux`, `x64`, and `wasaa-prod`. Keep the `main` branch protected so only reviewed changes can reach the production deployment path.
+7. Push a small reviewed change to `main`. In **Actions**, wait for all CI jobs and then **Deploy to Azure VM**. On the VM, check `git -C /var/www/wasaa rev-parse --short HEAD`, `systemctl status wasaa-recommender --no-pager`, and the site in a browser.
+
+Each deployment fetches the latest `main` commit, installs production Composer and npm dependencies, builds browser assets, runs Laravel migrations, refreshes the Laravel config cache, and reloads Nginx/PHP-FPM and the recommender. It does not overwrite the VM's `.env` or transfer model artifacts. Back up the database before a release with schema changes, and keep Azure disk/VM backups current; a failed migration may require restoring a backup. If your VM uses a different PHP-FPM version, update its service name in `.github/workflows/ci.yml` and the sudoers rule to match.
+
+### Recovery
+
+If a deployment fails, inspect the failed job in GitHub Actions and the local services on the VM. Fix forward with a new commit to `main`; for an application regression, revert the offending commit and push the revert. For a failed schema migration, restore the database backup only after assessing whether any writes happened after the backup. Do not run `key:generate` during recovery.
+
+## Manual updates and recovery
 
 After merging a change, take a database backup before schema changes, then deploy the merged commit:
 

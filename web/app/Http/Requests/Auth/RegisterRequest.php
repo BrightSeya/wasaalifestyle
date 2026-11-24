@@ -28,6 +28,7 @@ class RegisterRequest extends FormRequest
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()],
             'commitment_risk_consent' => ['sometimes', 'accepted'],
+            'recommendation_personalization_consent' => ['sometimes', 'accepted'],
         ];
     }
 }

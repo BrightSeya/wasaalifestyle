@@ -14,7 +14,7 @@ from sklearn.linear_model import LogisticRegression
 
 from features import FEATURE_COLUMNS, apply_completion_rate, one_hot_category
 from load_atus import PROCESSED_DIR, ROOT
-from metrics import hit_rate_at_k, mean_absolute_error_hours, precision_recall_f1
+from metrics import best_f1_threshold, hit_rate_at_k, mean_absolute_error_hours, precision_recall_f1
 
 TOP_K = 3
 REQUEST_COLUMNS = ["category", "day_of_week", "duration_min", "schedule_density", "gap_since_last_same_category_hrs"]
@@ -25,8 +25,8 @@ def completion_rate_score(df):
     return df["historical_completion_rate"]
 
 
-def evaluate_binary(y_true, y_score):
-    return precision_recall_f1(y_true, y_score, threshold=0.5)
+def evaluate_binary(y_true, y_score, threshold=0.5):
+    return precision_recall_f1(y_true, y_score, threshold=threshold)
 
 
 def evaluate_ranking(positives, lookup, score_fn, k=TOP_K):
@@ -66,7 +66,10 @@ def evaluate_ranking(positives, lookup, score_fn, k=TOP_K):
 
 
 def evaluate_baseline(name, score_fn, val, val_positives, lookup, results):
-    binary = evaluate_binary(val["label"], score_fn(val[FEATURE_COLUMNS]))
+    scores = score_fn(val[FEATURE_COLUMNS])
+    threshold = best_f1_threshold(val["label"], scores)
+    binary = evaluate_binary(val["label"], scores, threshold=threshold)
+    binary["decision_threshold"] = threshold
     ranking = evaluate_ranking(val_positives, lookup, score_fn)
     results[name] = {**binary, **ranking}
 
@@ -77,7 +80,8 @@ def main():
     lookup = pd.read_csv(PROCESSED_DIR / "completion_rate_lookup.csv")
     val_positives = val[val["label"] == 1]
 
-    results = {}
+    out_path = ROOT / "models" / "baselines.json"
+    results = json.loads(out_path.read_text()) if out_path.exists() else {}
 
     evaluate_baseline("completion_rate_only", completion_rate_score, val, val_positives, lookup, results)
 
@@ -86,7 +90,6 @@ def main():
     logreg_score = lambda df: model.predict_proba(df)[:, 1]  # noqa: E731
     evaluate_baseline("logistic_regression", logreg_score, val, val_positives, lookup, results)
 
-    out_path = ROOT / "models" / "baselines.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(results, indent=2))
 

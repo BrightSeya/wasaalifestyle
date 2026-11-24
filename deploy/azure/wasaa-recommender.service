@@ -12,8 +12,8 @@ ExecStartPre=/var/www/wasaa/ml/slot-recommender/.venv/bin/python ../no-show/src/
 Restart=on-failure
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
-Environment=WASAA_RISK_MODEL_ENABLED=true
-Environment=WASAA_RISK_ALLOW_SYNTHETIC_MODEL=true
+Environment=WASAA_RISK_MODEL_ENABLED=false
+Environment=WASAA_RISK_ALLOW_SYNTHETIC_MODEL=false
 Environment=WASAA_RISK_MODEL_PATH=/var/www/wasaa/ml/no-show/models/commitment_risk.joblib
 Environment=WASAA_RISK_MODEL_CARD_PATH=/var/www/wasaa/ml/no-show/models/model_card.json
 

@@ -76,18 +76,29 @@ $headers = @{ "X-API-Key" = $env:ML_RETRAIN_KEY }
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:5001/retrain -Headers $headers
 ```
 
-On success, the endpoint reruns the training pipeline, reloads the model and completion
-lookup into the running process, and returns `cv_f1` and `best_params` from the model card.
+On success, the endpoint reruns the training pipeline, reloads the model, completion lookup,
+and validation-selected suitability threshold into the running process, and returns `cv_f1`,
+`best_params`, and `decision_threshold` from the model card.
 
 ### Learning from Wasaa outcomes
 
-Each recommendation request also includes compact outcome counts for that user's weekday
-and hour, derived from the previous 365 days of activity logs and schedule occurrence
-outcomes. Completed outcomes increase the personal suitability estimate; missed outcomes
-decrease it. Skipped and cancelled outcomes are omitted because they do not show that a
-time slot was unsuitable. Feedback decays with a 180-day half-life, and hierarchical
-shrinkage keeps sparse personal history close to the ATUS-trained cold-start model. The
-counts are sent only for the signed-in user and are not pooled across users.
+When the user opts in during registration or in Settings, each recommendation request
+includes compact outcome counts for that user's weekday and hour, derived from the previous
+365 days of activity logs and schedule occurrence outcomes. Completed outcomes increase the
+personal suitability estimate; missed outcomes decrease it. Skipped and cancelled outcomes
+are omitted because they do not show that a time slot was unsuitable. Feedback decays with
+a 180-day half-life, and hierarchical shrinkage keeps sparse personal history close to the
+ATUS-trained cold-start model. The counts are sent only for the signed-in user and are not
+pooled across users. If the user declines or later turns personalization off, no outcome
+history is sent and standard ATUS-based recommendations remain available.
+
+### Evaluation threshold
+
+Training selects the suitability probability threshold that maximizes F1 on the respondent-
+held-out validation split. That threshold is stored in the model card and used by `/predict`
+for the `suitable` flag. The untouched test split is then scored once at that selected
+threshold; its metrics are recorded separately in the model card. Hit Rate@3 and MAE evaluate
+ranking and do not depend on the binary classification threshold.
 
 This updates that user's ranking immediately without refitting the Random Forest after
 every event. `POST /retrain` still retrains the population model from ATUS files only; it

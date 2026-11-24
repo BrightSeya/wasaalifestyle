@@ -6,6 +6,7 @@ use App\Enums\Category;
 use App\Models\Activity;
 use App\Models\Schedule;
 use App\Models\User;
+use App\Support\UserPreferences;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -76,11 +77,13 @@ class RecommendationService
      */
     private function requestRecommendations(User $user, array $payload): array
     {
-        $payload['user_feedback'] = $this->feedback->for(
-            $user,
-            (string) $payload['category'],
-            now(),
-        );
+        if (UserPreferences::fromArray($user->preferences)->personalizeRecommendations) {
+            $payload['user_feedback'] = $this->feedback->for(
+                $user,
+                (string) $payload['category'],
+                now(),
+            );
+        }
 
         try {
             $response = Http::baseUrl(config('services.slot_recommender.url'))

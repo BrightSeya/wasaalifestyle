@@ -29,6 +29,7 @@ class UpdatePreferencesRequest extends FormRequest
             'notify_recommendations' => ['sometimes', 'boolean'],
             'commitment_risk_enabled' => ['sometimes', 'boolean'],
             'notify_commitment_risk' => ['sometimes', 'boolean'],
+            'personalize_recommendations' => ['sometimes', 'boolean'],
         ];
 
         foreach (UserPreferences::days() as $day) {
@@ -63,6 +64,7 @@ class UpdatePreferencesRequest extends FormRequest
             notifyRecommendations: $this->boolean('notify_recommendations'),
             commitmentRiskEnabled: $this->boolean('commitment_risk_enabled'),
             notifyCommitmentRisk: $this->boolean('notify_commitment_risk'),
+            personalizeRecommendations: $this->boolean('personalize_recommendations'),
         );
     }
 }
