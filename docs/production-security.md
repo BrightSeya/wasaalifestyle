@@ -23,7 +23,7 @@ For local development, `MAIL_MAILER=log` records messages in `storage/logs/larav
 
 - Configure the hosting proxy or web server to redirect HTTP to HTTPS and trust only the actual proxy addresses. Do not trust arbitrary forwarded headers.
 - The application sends HSTS only when it is running in production and Laravel recognizes the request as HTTPS. Confirm TLS termination and trusted-proxy settings make `$request->isSecure()` accurate; otherwise configure HSTS at the TLS-terminating proxy.
-- The application adds `nosniff`, frame denial, a strict referrer policy, a limited Permissions Policy, and a production Content Security Policy. The CSP permits inline styles because the current Blade views use dynamic style attributes and allows the Bunny Fonts stylesheet/font host used on the public welcome page; it does not permit inline scripts. Delete confirmations are handled by the bundled JavaScript.
+- The application adds `nosniff`, frame denial, a strict referrer policy, a limited Permissions Policy, and a production Content Security Policy. The CSP permits inline styles because the current Blade views use dynamic style attributes, and allows Bunny Fonts plus Google Fonts (`fonts.googleapis.com` for the stylesheet and `fonts.gstatic.com` for font files). It does not permit inline scripts. Delete confirmations are handled by the bundled JavaScript.
 - Local development does not receive production CSP/HSTS, so Vite HMR continues to work.
 
 ## Accounts and operations
