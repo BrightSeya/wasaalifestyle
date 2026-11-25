@@ -194,6 +194,17 @@ The `/health` route reports whether the slot recommender is loaded. The app has 
 
 The Laravel test suite covers rule-based assessments using test data. The slot recommender remains an independent Flask service.
 
+## Demo account history
+
+For a demo, first register a dedicated account through the app and verify it normally. Then, on the VM, run the following from the Laravel application directory, replacing the example address with that account's email:
+
+```bash
+cd /var/www/wasaa/web
+php artisan demo:seed-recommendation-history demo@example.com --force
+```
+
+The command refuses accounts that already contain app data and adds 160 synthetic outcomes from the prior 320 days (80 completed and 80 missed). It does not create credentials, alter existing records, or enable personalization consent. The account owner must enable personalized recommendations in Settings. The personal model is used only if it passes its held-out comparison against the population model; enough history does not guarantee that it will outperform.
+
 ## Sprint 8 deployment verification record
 
 The repository changes and CI checks do not prove the live VM or NSG configuration. Complete this table after applying the merged commit on Azure; do not claim deployment verification until each item has been checked.

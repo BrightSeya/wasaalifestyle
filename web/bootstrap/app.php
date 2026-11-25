@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withCommands([__DIR__.'/../app/Console/Commands'])
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->trustProxies(at: ['127.0.0.1', '::1']);
         $middleware->append(SecurityHeaders::class);
