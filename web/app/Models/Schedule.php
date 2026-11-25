@@ -17,12 +17,16 @@ class Schedule extends Model
     protected $fillable = [
         'title',
         'description',
+        'activity_id',
         'category',
         'start_datetime',
         'end_datetime',
+        'is_all_day',
         'priority',
         'is_recurring',
         'recurrence_rule',
+        'recurrence_end_date',
+        'recurrence_count',
         'status',
         'google_event_id',
         'timezone',
@@ -34,13 +38,21 @@ class Schedule extends Model
             'category' => Category::class,
             'start_datetime' => 'datetime',
             'end_datetime' => 'datetime',
+            'is_all_day' => 'boolean',
             'is_recurring' => 'boolean',
+            'recurrence_end_date' => 'date',
+            'recurrence_count' => 'integer',
         ];
     }
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function activity(): BelongsTo
+    {
+        return $this->belongsTo(Activity::class);
     }
 
     public function notifications(): HasMany
@@ -51,10 +63,5 @@ class Schedule extends Model
     public function occurrenceOutcomes(): HasMany
     {
         return $this->hasMany(ScheduleOccurrenceOutcome::class);
-    }
-
-    public function riskAssessments(): HasMany
-    {
-        return $this->hasMany(ScheduleRiskAssessment::class);
     }
 }

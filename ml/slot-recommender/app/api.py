@@ -1,4 +1,4 @@
-"""Flask service for slot recommendations and the optional private risk endpoint.
+"""Flask service for slot recommendations.
 
 The model and completion-rate lookup are loaded once at startup. If either file is
 missing (e.g. before training has been run), the app still starts so /health can report
@@ -9,10 +9,10 @@ import hmac
 import json
 import math
 import os
+import re
 import sys
 import threading
 from pathlib import Path
-from typing import TypedDict
 
 import joblib
 import pandas as pd
@@ -24,64 +24,18 @@ LOOKUP_PATH = ROOT / "data" / "processed" / "completion_rate_lookup.csv"
 MODEL_CARD_PATH = ROOT / "models" / "model_card.json"
 
 sys.path.append(str(ROOT / "src"))
-NOSHOW_SRC = ROOT.parent / "no-show" / "src"
-sys.path.append(str(NOSHOW_SRC))
 from atus_category_map import CATEGORIES  # noqa: E402
 from candidates import REQUEST_FIELDS, top_k_hours  # noqa: E402
-from train_model import FEATURES as RISK_FEATURES  # noqa: E402
-from train_model import explain_factors, predict_probability  # noqa: E402
+from personalization import fit_personal_model, personal_model_features  # noqa: E402
 import train  # noqa: E402
 
 TOP_K = 3
-CONFIDENCE_THRESHOLD = 0.5
+DEFAULT_SUITABILITY_THRESHOLD = 0.5
+MAX_PERSONAL_HISTORY = 2000
+suitability_threshold = DEFAULT_SUITABILITY_THRESHOLD
 
-
-class CommitmentRiskRequest(TypedDict):
-    category: str
-    priority: str
-    weekday: int
-    scheduled_hour: int
-    duration_minutes: float
-    lead_hours: float
-    prior_labeled_count: int
-    prior_missed_rate: float | None
-    prior_same_category_labeled_count: int
-    prior_same_category_missed_rate: float | None
 
 app = Flask(__name__)
-
-RISK_MODEL_PATH = Path(
-    os.environ.get(
-        "WASAA_RISK_MODEL_PATH",
-        ROOT.parent / "no-show" / "models" / "commitment_risk.joblib",
-    )
-)
-RISK_MODEL_CARD_PATH = Path(
-    os.environ.get(
-        "WASAA_RISK_MODEL_CARD_PATH",
-        ROOT.parent / "no-show" / "models" / "model_card.json",
-    )
-)
-risk_model_enabled = os.environ.get("WASAA_RISK_MODEL_ENABLED", "false").strip().lower() == "true"
-risk_model_bundle = None
-risk_model_card = None
-
-if risk_model_enabled and RISK_MODEL_PATH.is_file() and RISK_MODEL_CARD_PATH.is_file():
-    try:
-        candidate_card = json.loads(RISK_MODEL_CARD_PATH.read_text(encoding="utf-8"))
-        candidate_bundle = joblib.load(RISK_MODEL_PATH)
-        candidate_version = candidate_card.get("git_commit") or candidate_card.get("evaluation_date_utc")
-        if (
-            candidate_card.get("evidence_type") == "approved-real"
-            and isinstance(candidate_card.get("model"), str)
-            and candidate_bundle.get("features") == RISK_FEATURES
-            and candidate_bundle.get("version") == candidate_version
-        ):
-            risk_model_bundle = candidate_bundle
-            risk_model_card = candidate_card
-    except Exception:
-        # Keep the slot recommender available if the optional risk model cannot load.
-        pass
 
 model = None
 lookup = None
@@ -91,6 +45,13 @@ RETRAIN_LOCK = threading.Lock()
 try:
     model = joblib.load(MODEL_PATH)
     lookup = pd.read_csv(LOOKUP_PATH)
+    if MODEL_CARD_PATH.is_file():
+        try:
+            card_threshold = json.loads(MODEL_CARD_PATH.read_text(encoding="utf-8")).get("decision_threshold")
+            if isinstance(card_threshold, (int, float)) and math.isfinite(card_threshold) and 0 <= card_threshold <= 1:
+                suitability_threshold = float(card_threshold)
+        except (OSError, ValueError, TypeError):
+            pass
 except FileNotFoundError:
     pass
 
@@ -132,10 +93,98 @@ def validate_request(data):
     return None
 
 
+def validate_user_feedback(feedback):
+    """Validate compact per-user outcome counts before they affect recommendations."""
+    if feedback is None:
+        return None
+    if not isinstance(feedback, dict) or len(feedback) > 168:
+        return "user_feedback must be an object with at most 168 weekday-hour bins."
+
+    expected_fields = {"category_completed", "category_total", "other_completed", "other_total"}
+    for key, counts in feedback.items():
+        if not isinstance(key, str) or not re.fullmatch(r"[0-6]:(?:[0-9]|1[0-9]|2[0-3])", key):
+            return "user_feedback contains an unsupported weekday-hour bin."
+        if not isinstance(counts, dict) or set(counts) != expected_fields:
+            return "user_feedback contains unsupported count fields."
+        for value in counts.values():
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                return "user_feedback counts must be finite numbers."
+            if value < 0 or value > 1_000_000:
+                return "user_feedback counts are outside the supported range."
+        if counts["category_completed"] > counts["category_total"]:
+            return "Category completions cannot exceed category outcomes."
+        if counts["other_completed"] > counts["other_total"]:
+            return "Other completions cannot exceed other outcomes."
+
+    return None
+
+
+def validate_personal_history(history):
+    """Validate the current user's labeled examples before fitting an isolated model."""
+    if history is None:
+        return None
+    if not isinstance(history, list) or len(history) > MAX_PERSONAL_HISTORY:
+        return f"personal_history must be a list of at most {MAX_PERSONAL_HISTORY} outcomes."
+
+    fields = {
+        "category", "day_of_week", "hour", "duration_min", "schedule_density",
+        "gap_since_last_same_category_hrs", "label", "weight", "occurred_at",
+    }
+    for example in history:
+        if not isinstance(example, dict) or set(example) != fields:
+            return "personal_history contains unsupported outcome fields."
+        if example["category"] not in CATEGORIES:
+            return "personal_history contains an unsupported category."
+        for field, minimum, maximum in (
+            ("day_of_week", 0, 6),
+            ("hour", 0, 23),
+            ("duration_min", 1, 1440),
+            ("schedule_density", 0, 10000),
+            ("gap_since_last_same_category_hrs", 0, 87600),
+            ("label", 0, 1),
+            ("occurred_at", 1, 4102444800),
+        ):
+            value = example[field]
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return f"personal_history {field} values must be numbers."
+            if not math.isfinite(value) or value < minimum or value > maximum:
+                return f"personal_history {field} values are outside the supported range."
+            if field in {"day_of_week", "hour", "duration_min", "schedule_density", "label", "occurred_at"} and not isinstance(value, int):
+                return f"personal_history {field} values must be integers."
+
+        weight = example["weight"]
+        if isinstance(weight, bool) or not isinstance(weight, (int, float)) or not math.isfinite(weight):
+            return "personal_history weights must be finite numbers."
+        if not 0 < weight <= 1:
+            return "personal_history weights must be greater than 0 and at most 1."
+
+    return None
+
+
+def validate_excluded_hours(hours):
+    if hours is None:
+        return None
+    if not isinstance(hours, list) or len(hours) > 24:
+        return "exclude_hours must be a list of at most 24 hour values."
+    if any(not isinstance(hour, int) or isinstance(hour, bool) or not 0 <= hour <= 23 for hour in hours):
+        return "exclude_hours values must be integers from 0 to 23."
+    return None
+
+
+def validate_preference_hours(hours, field):
+    if hours is None:
+        return None
+    if not isinstance(hours, list) or any(not isinstance(hour, int) or isinstance(hour, bool) or not 0 <= hour <= 23 for hour in hours):
+        return f"{field} must be a list of hour values from 0 to 23."
+    if len(set(hours)) != len(hours):
+        return f"{field} must not contain duplicate hours."
+    return None
+
+
 @app.post("/predict")
 def predict():
     with MODEL_LOCK:
-        active_model, active_lookup = model, lookup
+        active_model, active_lookup, active_threshold = model, lookup, suitability_threshold
 
     if active_model is None or active_lookup is None:
         return jsonify({"error": "Model not loaded"}), 503
@@ -145,15 +194,67 @@ def predict():
     if error:
         return jsonify({"error": error}), 400
 
+    user_feedback = data.get("user_feedback", {})
+    error = validate_user_feedback(user_feedback)
+    if error:
+        return jsonify({"error": error}), 400
+
+    personal_history = data.get("personal_history", [])
+    error = validate_personal_history(personal_history)
+    if error:
+        return jsonify({"error": error}), 400
+    personal_history = personal_history or []
+
+    excluded_hours = data.get("exclude_hours", [])
+    error = validate_excluded_hours(excluded_hours)
+    if error:
+        return jsonify({"error": error}), 400
+
+    available_hours = data.get("available_hours", list(range(24)))
+    preferred_hours = data.get("preferred_hours", [])
+    for field, hours in (("available_hours", available_hours), ("preferred_hours", preferred_hours)):
+        error = validate_preference_hours(hours, field)
+        if error:
+            return jsonify({"error": error}), 400
+    if not available_hours:
+        return jsonify({"error": "No available time window is long enough for this activity on this day. Update availability or reduce the activity duration."}), 422
+
+    requested_top_k = data.get("top_k", TOP_K)
+    if not isinstance(requested_top_k, int) or isinstance(requested_top_k, bool) or not 1 <= requested_top_k <= 24:
+        return jsonify({"error": "top_k must be an integer from 1 to 24."}), 400
+
     request_body = {field: data[field] for field in REQUEST_FIELDS}
-    score_fn = lambda df: active_model.predict_proba(df)[:, 1]  # noqa: E731
-    top = top_k_hours(request_body, active_lookup, score_fn, k=TOP_K)
+    personal_model, personal_model_status = fit_personal_model(
+        personal_history,
+        active_lookup,
+        active_model,
+    )
+    if personal_model is not None:
+        score_fn = lambda df: personal_model.predict_proba(personal_model_features(df))[:, 1]  # noqa: E731
+        user_feedback = {}
+        prediction_threshold = personal_model_status["decision_threshold"]
+        prediction_basis = "per_user_model"
+    else:
+        score_fn = lambda df: active_model.predict_proba(df)[:, 1]  # noqa: E731
+        prediction_threshold = active_threshold
+        prediction_basis = "atus_prior_plus_user_history" if user_feedback else "atus_cold_start"
+
+    top = top_k_hours(
+        request_body,
+        active_lookup,
+        score_fn,
+        k=requested_top_k,
+        user_feedback=user_feedback,
+        excluded_hours=excluded_hours,
+        available_hours=available_hours,
+        preferred_hours=preferred_hours,
+    )
 
     recommendations = [
         {
             "hour": int(row["hour"]),
             "confidence": round(float(row["score"]), 4),
-            "suitable": bool(row["score"] >= CONFIDENCE_THRESHOLD),
+            "suitable": bool(row["score"] >= prediction_threshold),
         }
         for row in top
     ]
@@ -161,101 +262,15 @@ def predict():
     return jsonify({
         "category": data["category"],
         "day_of_week": data["day_of_week"],
+        "prediction_basis": prediction_basis,
+        "personal_model_status": personal_model_status["status"],
         "recommendations": recommendations,
-    })
-
-
-def validate_risk_request(data: object) -> str | None:
-    """Return a safe validation error, or None when the approved feature object is valid."""
-    if not isinstance(data, dict):
-        return "Request body must be a JSON object."
-
-    missing = set(RISK_FEATURES) - set(data)
-    unexpected = set(data) - set(RISK_FEATURES)
-    if missing:
-        return "Request is missing required approved feature fields."
-    if unexpected:
-        return "Request contains unsupported fields."
-
-    if not isinstance(data["category"], str) or data["category"] not in CATEGORIES:
-        return "category is not supported."
-    if not isinstance(data["priority"], str) or data["priority"] not in {"low", "medium", "high"}:
-        return "priority is not supported."
-
-    for field, minimum, maximum in (("weekday", 0, 6), ("scheduled_hour", 0, 23)):
-        value = data[field]
-        if not isinstance(value, int) or isinstance(value, bool) or not minimum <= value <= maximum:
-            return f"{field} is outside the supported range."
-
-    for field in ("prior_labeled_count", "prior_same_category_labeled_count"):
-        value = data[field]
-        if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 1_000_000:
-            return f"{field} must be a non-negative integer in the supported range."
-
-    if data["prior_same_category_labeled_count"] > data["prior_labeled_count"]:
-        return "Category history count cannot exceed total history count."
-
-    for field, minimum, maximum in (
-        ("duration_minutes", 1, 10_080),
-        ("lead_hours", 0, 87_600),
-    ):
-        value = data[field]
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-            return f"{field} must be a finite number."
-        if not minimum <= value <= maximum:
-            return f"{field} is outside the supported range."
-
-    for field, count_field in (
-        ("prior_missed_rate", "prior_labeled_count"),
-        ("prior_same_category_missed_rate", "prior_same_category_labeled_count"),
-    ):
-        value = data[field]
-        if value is None:
-            if data[count_field] != 0:
-                return f"{field} must be supplied when its history count is non-zero."
-            continue
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-            return f"{field} must be a finite number or null."
-        if not 0 <= value <= 1 or data[count_field] == 0:
-            return f"{field} must be between 0 and 1 and requires a non-zero history count."
-
-    return None
-
-
-@app.post("/noshow/predict")
-def predict_commitment_risk():
-    if not risk_model_enabled or risk_model_bundle is None or risk_model_card is None:
-        return jsonify({"error": "Commitment-risk prediction is unavailable."}), 503
-
-    data = request.get_json(silent=True)
-    error = validate_risk_request(data)
-    if error:
-        return jsonify({"error": error}), 400
-
-    # Use a fixed allow-list; no request IDs, text, or raw payload is passed to inference.
-    feature_row: CommitmentRiskRequest = {field: data[field] for field in RISK_FEATURES}
-    try:
-        probability = float(predict_probability(risk_model_bundle, pd.DataFrame([feature_row]))[0])
-        if not math.isfinite(probability) or not 0 <= probability <= 1:
-            raise ValueError("Model returned an invalid probability")
-        factors = explain_factors(risk_model_bundle, feature_row, limit=3)
-    except Exception:
-        app.logger.warning("Commitment-risk inference failed")
-        return jsonify({"error": "Commitment-risk prediction is unavailable."}), 503
-
-    return jsonify({
-        "probability": round(probability, 4),
-        "factors": factors,
-        "model": {
-            "name": risk_model_card.get("model"),
-            "version": risk_model_card.get("git_commit") or risk_model_card.get("evaluation_date_utc"),
-        },
     })
 
 
 @app.post("/retrain")
 def retrain():
-    global model, lookup
+    global model, lookup, suitability_threshold
 
     expected_key = os.environ.get("ML_RETRAIN_KEY")
     provided_key = request.headers.get("X-API-Key", "")
@@ -273,13 +288,17 @@ def retrain():
             refreshed_model = joblib.load(MODEL_PATH)
             refreshed_lookup = pd.read_csv(LOOKUP_PATH)
             model_card = json.loads(MODEL_CARD_PATH.read_text(encoding="utf-8"))
+            refreshed_threshold = model_card.get("decision_threshold", DEFAULT_SUITABILITY_THRESHOLD)
+            if not isinstance(refreshed_threshold, (int, float)) or not math.isfinite(refreshed_threshold) or not 0 <= refreshed_threshold <= 1:
+                refreshed_threshold = DEFAULT_SUITABILITY_THRESHOLD
             summary = {
                 "cv_f1": model_card["cv_f1"],
                 "best_params": model_card["best_params"],
+                "decision_threshold": refreshed_threshold,
             }
 
             with MODEL_LOCK:
-                model, lookup = refreshed_model, refreshed_lookup
+                model, lookup, suitability_threshold = refreshed_model, refreshed_lookup, float(refreshed_threshold)
     except Exception:
         app.logger.exception("Slot recommender retraining failed")
         return jsonify({

@@ -79,6 +79,9 @@ def test_train_calibrate_evaluate_and_save_a_synthetic_test_artifact(tmp_path):
 
     assert report["baseline"]["status"] == "computed"
     assert model_card["evidence_type"] == "synthetic"
+    assert model_card["model_source"] == train_model.UPSTREAM_MODEL_SOURCE
+    assert "Wasaa-specific pre-event feature schema" in model_card["model_source_adaptation"]
+    assert model_card["selection"]["calibration"].startswith("upstream Platt sigmoid")
     assert model_card["user_facing_predictions_enabled"] is False
     assert model_card["split"]["test_from"] == pd.to_datetime(report["baseline"]["split_at"], utc=True).isoformat()
     assert set(model_card["held_out_metrics"]) == {"roc_auc", "precision", "recall", "f1", "accuracy", "brier_score"}
@@ -95,6 +98,15 @@ def test_train_calibrate_evaluate_and_save_a_synthetic_test_artifact(tmp_path):
     factors = train_model.explain_factors(restored, dataset[train_model.FEATURES].iloc[0].to_dict())
     assert len(factors) <= 3
     assert all(factor["log_odds_contribution"] > 0 for factor in factors)
+
+
+def test_upstream_model_pipeline_and_platt_calibration_are_adapted():
+    pipeline = train_model._new_pipeline()
+    classifier = pipeline.named_steps["classifier"]
+
+    assert isinstance(classifier, train_model.LogisticRegression)
+    assert classifier.get_params()["max_iter"] == 2000
+    assert train_model._platt_calibrator(np.array([0.2, 0.8]), np.array([0, 1])).C == 1e6
 
 
 def test_training_rejects_post_event_columns():

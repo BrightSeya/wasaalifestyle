@@ -7,7 +7,7 @@ single best-ranked hour, measured around a 24-hour clock.
 """
 
 import numpy as np
-from sklearn.metrics import f1_score, precision_score, recall_score
+from sklearn.metrics import f1_score, precision_recall_curve, precision_score, recall_score
 
 HOURS_IN_DAY = 24
 
@@ -21,6 +21,26 @@ def precision_recall_f1(y_true, y_score, threshold=0.5):
         "recall": float(recall_score(y_true, y_pred, zero_division=0)),
         "f1": float(f1_score(y_true, y_pred, zero_division=0)),
     }
+
+
+def best_f1_threshold(y_true, y_score, sample_weight=None):
+    """Choose the probability cutoff with the highest F1 on a tuning partition."""
+    precision, recall, thresholds = precision_recall_curve(
+        y_true,
+        y_score,
+        sample_weight=sample_weight,
+    )
+    if len(thresholds) == 0:
+        return 0.5
+
+    denominator = precision[:-1] + recall[:-1]
+    f1 = np.divide(
+        2 * precision[:-1] * recall[:-1],
+        denominator,
+        out=np.zeros_like(denominator),
+        where=denominator != 0,
+    )
+    return float(thresholds[int(np.argmax(f1))])
 
 
 def circular_hour_distance(a, b):

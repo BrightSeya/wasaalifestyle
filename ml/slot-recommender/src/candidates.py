@@ -42,7 +42,7 @@ def build_candidates(request, lookup):
     return candidates[FEATURE_COLUMNS]
 
 
-def score_candidates(request, lookup, score_fn):
+def score_candidates(request, lookup, score_fn, user_feedback=None, excluded_hours=None, available_hours=None, preferred_hours=None):
     """Candidates for request, with a 'score' column, ranked best (most suitable) first.
 
     score_fn: any callable(DataFrame[FEATURE_COLUMNS]) -> array-like of scores, e.g.
@@ -52,15 +52,52 @@ def score_candidates(request, lookup, score_fn):
     candidates = build_candidates(request, lookup)
     scored = candidates.copy()
     scored["score"] = score_fn(candidates)
+
+    # ATUS remains the cold-start prior. Hierarchical shrinkage lets personal
+    # outcomes influence rankings gradually without fitting a model to a tiny
+    # and noisy per-user sample.
+    if user_feedback:
+        prior_strength = 12.0
+        category_strength = 6.0
+        weekday = request["day_of_week"]
+        for index, row in scored.iterrows():
+            feedback = user_feedback.get(f"{weekday}:{int(row['hour'])}")
+            if not feedback:
+                continue
+
+            base_score = float(row["score"])
+            other_total = float(feedback["other_total"])
+            other_completed = float(feedback["other_completed"])
+            user_rate = (prior_strength * base_score + other_completed) / (prior_strength + other_total)
+
+            category_total = float(feedback["category_total"])
+            category_completed = float(feedback["category_completed"])
+            scored.at[index, "score"] = (
+                category_strength * user_rate + category_completed
+            ) / (category_strength + category_total)
+
+    if excluded_hours:
+        scored = scored[~scored["hour"].isin(excluded_hours)]
+
+    if available_hours is not None:
+        scored = scored[scored["hour"].isin(available_hours)]
+
+    if preferred_hours is not None:
+        scored["_preferred"] = scored["hour"].isin(preferred_hours)
+        scored = scored.sort_values(["_preferred", "score"], ascending=[False, False], kind="stable")
+        scored = scored.drop(columns=["_preferred"])
+
+        return scored.reset_index(drop=True)
+
     return scored.sort_values("score", ascending=False).reset_index(drop=True)
 
 
-def rank_hours(request, lookup, score_fn):
+def rank_hours(request, lookup, score_fn, user_feedback=None, excluded_hours=None, available_hours=None, preferred_hours=None):
     """All 24 candidate hours, best first."""
-    return score_candidates(request, lookup, score_fn)["hour"].tolist()
+    return score_candidates(request, lookup, score_fn, user_feedback, excluded_hours, available_hours, preferred_hours)["hour"].tolist()
 
 
-def top_k_hours(request, lookup, score_fn, k=3):
+def top_k_hours(request, lookup, score_fn, k=3, user_feedback=None, excluded_hours=None, available_hours=None, preferred_hours=None):
     """The top-k candidate hours as the API would return them: [{hour, score}, ...]."""
-    ranked = score_candidates(request, lookup, score_fn)
+    ranked = score_candidates(request, lookup, score_fn, user_feedback, excluded_hours, available_hours, preferred_hours)
     return ranked.head(k)[["hour", "score"]].to_dict("records")

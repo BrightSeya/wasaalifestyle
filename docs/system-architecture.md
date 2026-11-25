@@ -9,11 +9,8 @@ flowchart LR
     U[Browser] -->|HTTPS in deployment / HTTP locally| L[Laravel 12 application]
     L --> DB[(MySQL or MariaDB locally; SQLite in CI)]
     L -->|POST /predict, timeout 5 s| F[Private Flask API]
-    L -->|Optional POST /noshow/predict, short timeout| F
     F --> M[Slot recommender Random Forest artifact]
-    F --> R[Optional calibrated risk model artifact]
     F --> C[Model cards and baseline metadata]
-    L -->|Optional minimal assessment and in-app alert| DB
     L -->|OAuth read-only import| G[Google Calendar API]
     L -->|Configured mail transport| E[Email provider]
 ```
@@ -27,15 +24,15 @@ Laravel owns authentication, authorization, validation, schedule persistence, co
 - `docs/` — user, integration, deployment, performance, and project documentation.
 - `.github/workflows/ci.yml` — repository sanity, Laravel, and ML test jobs.
 
-The optional commitment-risk flow is implemented behind default-off controls. Laravel owns eligibility, per-user prior-outcome feature derivation, assessment persistence, opt-in, and alert creation. The Flask `POST /noshow/predict` route accepts only the allow-listed derived feature object and loads an artifact only when the Python model flag is enabled and a matching approved-real model card is available. It is a separate endpoint from slot recommendations. The Flask process must remain on a private interface; the Azure unit binds to loopback. See the [commitment-risk model and operations record](../ml/no-show/README.md).
+The application does not include a no-show prediction, activity-risk assessment, or reminder feature. The `ml/no-show/` folder contains research and synthetic tests only; Laravel and Flask do not load or call it. Users can record schedule occurrence outcomes, which are used only for that user's time-slot recommendations when personalization is enabled. Flask's active ML endpoint is `/predict`.
 
 ## Request and data flow
 
-When a signed-in user requests recommendations, Laravel gathers the task category, weekday (Monday is `0`), duration in minutes, schedule density, and hours since the same category was last scheduled. Laravel calls the configured Flask URL at `/predict` with a five-second timeout. Flask evaluates candidate hours, using the trained classifier and completion lookup, and returns up to three suggestions with confidence and suitability data. Laravel presents the results and remains responsible for checking the user's schedule, enforcing ownership, resolving conflicts, and persisting any confirmed schedule.
+For a repeatable activity, Laravel evaluates each of the next seven dates using that weekday's availability, selects up to the activity's weekly frequency in conflict-free, spread-out days, and offers up to three time options per selected day. The user chooses one time per session during activity setup or editing. Laravel stores those choices as linked weekly schedule entries for at most one year; editing or deleting a linked schedule from the general schedule screens redirects to the activity editor so the saved plan stays consistent. An isolated conflict skips only that occurrence by recording a cancelled occurrence outcome, leaving the rest of the weekly routine intact. A conflict that repeats across multiple occurrences is rejected so the user can choose another day or time. Task recommendations support one-off, daily, and weekly schedules; a candidate recurring time must fit availability and avoid schedule clashes for every occurrence in its selected end period. For an unbounded repeat, Laravel checks the weekly repeat pattern and currently saved one-time and finite recurring entries. A conflict against an isolated occurrence can be saved as a cancelled occurrence outcome, leaving the rest of the series intact. A repeating-pattern clash is rejected because it would recur. Users can choose from available starts on 30-minute steps. Each request includes category, weekday (Monday is `0`), duration in minutes, schedule density, and hours since the same category was last completed. Laravel calls the configured Flask URL at `/predict` with a five-second timeout. Flask scores candidate hours using the trained classifier and completion lookup; Laravel applies duration-aware availability and schedule conflict checks, enforces ownership, and only records a task recommendation when the user saves the task at that suggested time.
+
+If the user opted in to recommendation personalization, Laravel sends only that user's completed and missed activity-log and schedule-occurrence outcomes from the previous 365 days. Skipped and cancelled entries are excluded. The data is scoped to the current prediction and is not saved or pooled by Flask. With at least 120 outcomes (including at least 20 of each result), Flask trains a separate regularized model for that request, checks it against the population model on the user's most recent outcomes, and uses it only if its recency-weighted Brier score is lower. Otherwise, the population model plus its existing recency-weighted personal adjustment is used. Turning personalization off stops sending personal outcomes. The protected `/retrain` endpoint continues to train the population model from ATUS data only.
 
 The recommender's `/health` endpoint reports whether a model is loaded. `/predict` returns a client error for invalid request JSON and a service-unavailable response when model artifacts are unavailable. `/retrain` is protected by `ML_RETRAIN_KEY` in the `X-API-Key` header. Retraining is synchronous, so this endpoint should not be exposed publicly. The prediction route has no independent authentication; restrict access to the Flask service at the network layer.
-
-For commitment-risk assessments, Laravel calls `/noshow/predict` only when `COMMITMENT_RISK_ENABLED` is enabled and the occurrence has eligible same-user history. The service accepts no identifiers or free text. The alert scheduler additionally requires the user's opt-in and a configured evaluated threshold; it creates only a deduplicated in-app alert about one hour before an eligible occurrence. Alerts do not change schedules and alternatives require user confirmation and a conflict recheck. Both risk features remain off by default. There is currently no approved real Wasaa dataset, real-data baseline/model evaluation, or deployed risk artifact in the repository; synthetic tests validate contracts only. Do not cite them as product performance evidence. Details, provenance, and operations state are recorded in the [model README](../ml/no-show/README.md) and [Azure runbook](azure-vm-deployment.md).
 
 Google Calendar integration uses a read-only OAuth scope. Laravel stores OAuth tokens encrypted using `APP_KEY`. Imports are limited to a 31-day range; duplicate events are skipped. All-day events and events spanning local calendar days are not supported by the current importer. See [Google Calendar OAuth and import](google-calendar-oauth.md).
 
@@ -117,7 +114,7 @@ Never commit `.env`, OAuth client secrets, API keys, access tokens, or real user
 
 ## Model result and limitations
 
-The business target in the modeling documentation is F1 greater than `0.75`. The committed `baselines.json` records Random Forest validation F1 of `0.7246`, Hit Rate@3 of `0.3612`, and MAE of `3.682` hours. The validation F1 is about `0.0254` (2.54 percentage points) below the target, so the target was not met. `model_card.json` reports cross-validation F1 of `0.7299`; that is a separate metric and must not be described as a held-out test result. The committed results do not provide a distinct held-out test-set F1 value.
+The business target is F1 greater than `0.75` on the held-out test split. After selecting a decision threshold on validation, `model_card.json` records validation F1 `0.7442` at threshold `0.3823` and held-out test F1 `0.7510`; the test result meets the target narrowly. Test Hit Rate@3 is `0.3675` and MAE is `3.597` hours. The cross-validation F1 `0.7299` is a separate model-selection metric. The scores are measured on constructed ATUS suitability labels and do not establish user acceptance or Wasaa-user accuracy.
 
 The training data comes from the U.S. American Time Use Survey, with one diary day per respondent. “Not suitable” is a proxy label meaning the respondent was doing another activity at that time, not that they would reject a recommendation. Survey weights are not used. The model has not been shown to generalize to Wasaa users in Kenya or other populations; in-app completion data is intended to support personalization, but that does not establish measured improvement yet. See the CRISP-DM reports in `ml/slot-recommender/docs/` for methodology and comparisons.
 
@@ -135,7 +132,7 @@ Run the recommender tests from `ml/slot-recommender/` with its virtual environme
 python -m pytest
 ```
 
-Build frontend assets from `web/` with `npm.cmd run build`. GitHub Actions runs the repository sanity checks, Laravel tests on PHP 8.2 with SQLite, and recommender tests on Python 3.11. The workflow does not currently run the frontend build. Manual browser acceptance checks are described in the [User Manual](user-manual.md) and UAT/SUS plan.
+Build frontend assets from `web/` with `npm.cmd run build`. GitHub Actions runs the repository sanity checks, frontend production build, Laravel tests on PHP 8.2 with SQLite, and recommender tests on Python 3.11. A push to `main` deploys to the Azure VM only after those jobs pass. Manual browser acceptance checks are described in the [User Manual](user-manual.md) and UAT/SUS plan.
 
 ## Related documentation
 

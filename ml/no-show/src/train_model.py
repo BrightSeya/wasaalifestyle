@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,13 @@ from sklearn.metrics import (
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from upstream_cold_start import (  # noqa: E402
+    MODEL_TYPE as UPSTREAM_COLD_START_MODEL_TYPE,
+    explain_wasaa_factors,
+    personalize_upstream_probability,
+    predict_wasaa_probability,
+)
 
 FEATURES = [
     "category",
@@ -42,7 +50,7 @@ FEATURES = [
 CATEGORICAL = ["category", "priority"]
 NUMERIC = [feature for feature in FEATURES if feature not in CATEGORICAL]
 EXPECTED_COLUMNS = {"scheduled_at", *FEATURES, "label"}
-REGULARIZATION_CANDIDATES = (0.1, 1.0, 10.0)
+UPSTREAM_MODEL_SOURCE = "https://github.com/BrightSeya/scheduling/blob/main/app/model.py"
 
 
 def _partition_by_time(
@@ -78,7 +86,8 @@ def _partition_by_time(
     }
 
 
-def _new_pipeline(c_value: float) -> Pipeline:
+def _new_pipeline() -> Pipeline:
+    """Wasaa-schema adaptation of scheduling/app/model.py's logistic pipeline."""
     preprocessing = ColumnTransformer(
         transformers=[
             ("category", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL),
@@ -98,7 +107,7 @@ def _new_pipeline(c_value: float) -> Pipeline:
     return Pipeline(
         [
             ("features", preprocessing),
-            ("classifier", LogisticRegression(C=c_value, max_iter=2000, random_state=42)),
+            ("classifier", LogisticRegression(max_iter=2000)),
         ]
     )
 
@@ -114,9 +123,15 @@ def _f1_threshold(labels: np.ndarray, probabilities: np.ndarray) -> tuple[float,
     return best_threshold, best_f1
 
 
-def _platt_calibrator(validation_logits: np.ndarray, validation_labels: np.ndarray) -> LogisticRegression:
-    calibrator = LogisticRegression(C=1.0, max_iter=2000, random_state=42)
-    calibrator.fit(validation_logits.reshape(-1, 1), validation_labels)
+def _logit(probabilities: np.ndarray) -> np.ndarray:
+    clipped = np.clip(np.asarray(probabilities, dtype=float), 1e-6, 1 - 1e-6)
+    return np.log(clipped / (1 - clipped))
+
+
+def _platt_calibrator(validation_probabilities: np.ndarray, validation_labels: np.ndarray) -> LogisticRegression:
+    """Use the upstream Platt sigmoid on logits of raw validation probabilities."""
+    calibrator = LogisticRegression(C=1e6, max_iter=1000)
+    calibrator.fit(_logit(validation_probabilities).reshape(-1, 1), validation_labels)
     return calibrator
 
 
@@ -166,22 +181,19 @@ def train_and_evaluate(
         if part["label"].nunique() != 2:
             raise ValueError(f"{name} period must contain both labels for the requested evaluation")
 
-    candidates = []
-    for c_value in REGULARIZATION_CANDIDATES:
-        candidate = _new_pipeline(c_value)
-        candidate.fit(train[FEATURES], train["label"])
-        validation_logits = candidate.decision_function(validation[FEATURES])
-        candidates.append((roc_auc_score(validation["label"], validation_logits), -c_value, candidate))
-    validation_auc, negative_c, model = max(candidates, key=lambda entry: (entry[0], entry[1]))
-    selected_c = -negative_c
-
-    validation_logits = model.decision_function(validation[FEATURES])
-    calibrator = _platt_calibrator(validation_logits, validation["label"].to_numpy())
-    validation_probabilities = calibrator.predict_proba(validation_logits.reshape(-1, 1))[:, 1]
+    model = _new_pipeline()
+    model.fit(train[FEATURES], train["label"])
+    validation_probabilities_raw = model.predict_proba(validation[FEATURES])[:, 1]
+    calibrator = _platt_calibrator(validation_probabilities_raw, validation["label"].to_numpy())
+    validation_probabilities = calibrator.predict_proba(
+        _logit(validation_probabilities_raw).reshape(-1, 1)
+    )[:, 1]
     threshold, validation_f1 = _f1_threshold(validation["label"].to_numpy(), validation_probabilities)
 
-    test_logits = model.decision_function(test[FEATURES])
-    test_probabilities = calibrator.predict_proba(test_logits.reshape(-1, 1))[:, 1]
+    test_probabilities_raw = model.predict_proba(test[FEATURES])[:, 1]
+    test_probabilities = calibrator.predict_proba(
+        _logit(test_probabilities_raw).reshape(-1, 1)
+    )[:, 1]
     test_predictions = (test_probabilities >= threshold).astype(int)
     test_labels = test["label"].to_numpy()
 
@@ -193,18 +205,17 @@ def train_and_evaluate(
     baseline_brier = brier_score_loss(test_labels, np.full(len(test_labels), majority_probability))
 
     model_card = {
-        "model": "Wasaa commitment-risk logistic regression with validation-fitted Platt calibration",
-        "approach_reference": "https://github.com/BrightSeya/scheduling (workflow reference only; its synthetic rows and booking-specific fields are not used)",
+        "model": "Wasaa-adapted scheduling logistic regression with validation-fitted Platt calibration",
+        "model_source": UPSTREAM_MODEL_SOURCE,
+        "model_source_adaptation": "Reuses the upstream logistic-regression and Platt-calibration method with Wasaa occurrence labels and a Wasaa-specific pre-event feature schema; upstream synthetic bookings and incompatible booking/provider fields are not used.",
         "evidence_type": evidence_type,
         "target": {"completed": 0, "missed": 1, "excluded": ["skipped", "cancelled", "unreported"]},
         "feature_list": FEATURES,
         "features_excluded": ["user identifiers", "schedule identifiers", "titles", "descriptions", "outcome timestamps", "post-event statuses"],
         "split": split,
         "selection": {
-            "regularization_candidates": list(REGULARIZATION_CANDIDATES),
-            "selected_c": selected_c,
-            "validation_roc_auc": round(float(validation_auc), 6),
-            "calibration": "Platt sigmoid fitted on validation logits and labels",
+            "classifier": "scikit-learn LogisticRegression with upstream default regularization and max_iter=2000",
+            "calibration": "upstream Platt sigmoid fitted on logits of raw validation probabilities (C=1e6)",
             "alert_threshold": round(float(threshold), 6),
             "validation_f1_at_threshold": round(float(validation_f1), 6),
         },
@@ -246,6 +257,7 @@ def train_and_evaluate(
         "git_commit": _git_commit(),
     }
     bundle = {
+        "model_type": "wasaalifestyle-approved-real-v1",
         "model": model,
         "calibrator": calibrator,
         "threshold": threshold,
@@ -256,14 +268,26 @@ def train_and_evaluate(
 
 
 def predict_probability(bundle: dict[str, Any], feature_rows: pd.DataFrame) -> np.ndarray:
+    if bundle.get("model_type") == UPSTREAM_COLD_START_MODEL_TYPE:
+        probabilities = predict_wasaa_probability(bundle, feature_rows)
+        return np.asarray([
+            personalize_upstream_probability(probability, row)
+            for probability, row in zip(probabilities, feature_rows.to_dict("records"), strict=True)
+        ])
+    if bundle.get("model_type") != "wasaalifestyle-approved-real-v1":
+        raise ValueError("Only approved-real Wasaa model artifacts are supported")
     if list(bundle["features"]) != FEATURES or set(feature_rows.columns) != set(FEATURES):
         raise ValueError("Inference rows must match the approved Wasaa feature schema")
-    logits = bundle["model"].decision_function(feature_rows[FEATURES])
-    return bundle["calibrator"].predict_proba(logits.reshape(-1, 1))[:, 1]
+    raw_probabilities = bundle["model"].predict_proba(feature_rows[FEATURES])[:, 1]
+    return bundle["calibrator"].predict_proba(_logit(raw_probabilities).reshape(-1, 1))[:, 1]
 
 
 def explain_factors(bundle: dict[str, Any], feature_row: dict[str, Any], limit: int = 3) -> list[dict[str, Any]]:
     """Return the strongest positive logistic contributions without exposing IDs or raw text."""
+    if bundle.get("model_type") == UPSTREAM_COLD_START_MODEL_TYPE:
+        return explain_wasaa_factors(bundle, feature_row, limit=limit)
+    if bundle.get("model_type") != "wasaalifestyle-approved-real-v1":
+        raise ValueError("Only approved-real Wasaa model artifacts are supported")
     if list(bundle["features"]) != FEATURES or set(feature_row) != set(FEATURES):
         raise ValueError("Explanation row must match the approved Wasaa feature schema")
 

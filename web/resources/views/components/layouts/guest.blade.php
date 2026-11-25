@@ -7,6 +7,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f7f6f3">
     <title>{{ $title }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Danfo&display=swap" rel="stylesheet">
     <script src="{{ asset('theme.js') }}"></script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -17,9 +20,9 @@
             <div aria-hidden="true" class="absolute -bottom-48 -left-36 h-[34rem] w-[34rem] rounded-full border border-gray-900/10"></div>
             <div aria-hidden="true" class="absolute right-24 top-1/3 h-3 w-3 rounded-full bg-white/50"></div>
 
-            <a href="{{ route('home') }}" class="relative z-10 inline-flex w-fit items-center gap-3 font-bold tracking-tight text-gray-900">
-                <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-900/10 bg-white/50 text-gray-900 shadow-sm"><svg aria-hidden="true" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h16M6.5 14a5.5 5.5 0 0 1 11 0M12 3v2M4.9 6l1.5 1.5M19.1 6l-1.5 1.5"/><path d="M8.5 17v2m7-2v2"/></svg></span>
-                <span class="text-lg">WasaaLifestyle</span>
+            <a href="{{ route('home') }}" class="relative z-10 inline-flex w-fit items-center gap-2.5 text-gray-900">
+                <svg aria-hidden="true" class="h-12 w-12 shrink-0 text-amber-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h16M6.5 14a5.5 5.5 0 0 1 11 0M12 3v2M4.9 6l1.5 1.5M19.1 6l-1.5 1.5"/><path d="M8.5 17v2m7-2v2"/></svg>
+                <span class="flex flex-col items-start"><span class="font-danfo text-5xl leading-[.82] tracking-wide">WASAA</span><span class="mt-2 text-[9px] font-semibold uppercase tracking-[.19em] text-gray-700">Make room for life</span></span>
             </a>
 
             <div class="relative z-10 my-auto max-w-xl py-16">

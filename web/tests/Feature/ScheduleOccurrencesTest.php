@@ -86,6 +86,26 @@ class ScheduleOccurrencesTest extends TestCase
         $this->assertSame(['2026-09-28 09:00'], $this->weekStarts());
     }
 
+    public function test_daily_entry_stops_on_its_inclusive_last_date(): void
+    {
+        $schedule = $this->entry('2026-09-29 07:00', '2026-09-29 07:30', 'daily');
+        $schedule->update(['recurrence_end_date' => '2026-10-01']);
+
+        $this->assertSame([
+            '2026-09-29 07:00', '2026-09-30 07:00', '2026-10-01 07:00',
+        ], $this->weekStarts());
+    }
+
+    public function test_daily_entry_stops_after_the_requested_occurrence_count(): void
+    {
+        $schedule = $this->entry('2026-09-29 07:00', '2026-09-29 07:30', 'daily');
+        $schedule->update(['recurrence_count' => 3]);
+
+        $this->assertSame([
+            '2026-09-29 07:00', '2026-09-30 07:00', '2026-10-01 07:00',
+        ], $this->weekStarts());
+    }
+
     public function test_recurring_entry_starting_after_the_range_is_not_shown(): void
     {
         $this->entry('2026-10-10 09:00', '2026-10-10 10:00', 'daily');

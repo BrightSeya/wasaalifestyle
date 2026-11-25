@@ -18,7 +18,7 @@
                     <tr>
                         <th class="px-4 py-3">Activity Name</th>
                         <th class="px-4 py-3">Category</th>
-                        <th class="px-4 py-3">Preferred Time</th>
+                        <th class="px-4 py-3">Weekly plan</th>
                         <th class="px-4 py-3">Frequency</th>
                         <th class="px-4 py-3">Duration</th>
                         <th class="px-4 py-3">Streak</th>
@@ -38,7 +38,18 @@
                                 <a href="{{ route('activities.edit', $activity) }}">{{ $activity->name }}</a>
                             </td>
                             <td class="px-4 py-3"><span class="rounded bg-gray-100 px-2 py-0.5 text-xs">{{ ucfirst($activity->category->value) }}</span></td>
-                            <td class="px-4 py-3">{{ \Illuminate\Support\Carbon::parse($activity->preferred_time_of_day)->format('g:i A') }}</td>
+                            <td class="px-4 py-3">
+                                <div class="space-y-1">
+                                    @forelse ($activity->weekly_slots ?? [] as $slot)
+                                        <p class="whitespace-nowrap text-xs">
+                                            {{ ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][(int) $slot['weekday'] - 1] }}
+                                            · {{ \Illuminate\Support\Carbon::createFromFormat('H:i', substr($slot['start_time'], 0, 5))->format('g:i A') }}
+                                        </p>
+                                    @empty
+                                        <span class="text-xs text-gray-400">Plan not set</span>
+                                    @endforelse
+                                </div>
+                            </td>
                             <td class="px-4 py-3">{{ $activity->frequency }}x/week</td>
                             <td class="px-4 py-3">{{ $activity->duration_minutes }} min</td>
                             <td class="px-4 py-3">{{ $streaks[$activity->id] }} {{ Str::plural('day', $streaks[$activity->id]) }}</td>
@@ -71,12 +82,7 @@
                                 </div>
                             </td>
                             <td class="px-4 py-3">
-                                <form method="POST" action="{{ route('recommendations.store', $activity) }}">
-                                    @csrf
-                                    <button type="submit" class="whitespace-nowrap rounded-full border border-gray-300 px-3 py-1 text-xs font-semibold hover:bg-gray-50">
-                                        Get recommendation
-                                    </button>
-                                </form>
+                                <a href="{{ route('activities.edit', $activity) }}" class="whitespace-nowrap text-xs font-semibold text-amber-900 hover:underline">Edit weekly plan</a>
                             </td>
                         </tr>
                     @endforeach
@@ -89,4 +95,5 @@
             <canvas id="completion-chart" data-completion-chart data-chart="{{ json_encode($completionByDay) }}" height="80"></canvas>
         </div>
     @endif
+
 </x-layouts.app>

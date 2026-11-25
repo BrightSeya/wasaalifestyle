@@ -18,6 +18,7 @@ class Activity extends Model
         'category',
         'preferred_time_of_day',
         'frequency',
+        'weekly_slots',
         'duration_minutes',
     ];
 
@@ -26,6 +27,7 @@ class Activity extends Model
         return [
             'category' => Category::class,
             'frequency' => 'integer',
+            'weekly_slots' => 'array',
             'duration_minutes' => 'integer',
         ];
     }
@@ -43,5 +45,10 @@ class Activity extends Model
     public function recommendations(): HasMany
     {
         return $this->hasMany(Recommendation::class);
+    }
+
+    public function schedules(): HasMany
+    {
+        return $this->hasMany(Schedule::class);
     }
 }

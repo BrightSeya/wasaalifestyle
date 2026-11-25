@@ -1,13 +1,13 @@
 # Wasaa Lifestyle final evaluation report
 
 **Issue:** #95 - `docs: write the final evaluation report`
-**Status:** Draft. The user confirms the supplied UAT/SUS figures are from collected sessions. Test metadata, a UAT count discrepancy, and the no-show model's version/provenance still need reconciliation.
+**Status:** Draft. The user confirms the supplied UAT/SUS figures are from collected sessions. Test metadata and a UAT count discrepancy still need reconciliation. The no-show ML model was removed from the running app; no no-show model-performance claim should be included.
 
 ## Executive summary
 
 Wasaa Lifestyle combines a Laravel scheduling application with a Flask time-slot recommender. The application supports schedules, conflict review, activity tracking, recommendations, notifications, account settings, and an optional read-only Google Calendar integration. The deployed Azure demo has served the application over its public IP, and the recommender health endpoint has reported that its model is loaded.
 
-The recorded local HTTP benchmark met the under-two-second target for all 270 measured page responses. The Random Forest improved top-three hit rate and mean absolute error over the recorded baselines, but its validation F1 of 0.7246 did not meet the project's target of greater than 0.75. User-supplied UAT results report 19 of 20 cases passing, and ten supplied participant SUS scores average 78.0, above the project's target of greater than 68. The UAT table conflicts with its summary by marking all 20 cases as passing; the test date, environment, and commit are also not filled in. The Azure IP demo uses HTTP; it is not suitable for password entry or public account use until HTTPS and production email delivery are configured and verified.
+The recorded local HTTP benchmark met the under-two-second target for all 270 measured page responses. After selecting the Random Forest decision threshold on validation data, its held-out test F1 was 0.7510, narrowly above the project's target of greater than 0.75; validation F1 was 0.7442. User-supplied UAT results report 19 of 20 cases passing, and ten supplied participant SUS scores average 78.0, above the project's target of greater than 68. The UAT table conflicts with its summary by marking all 20 cases as passing; the test date, environment, and commit are also not filled in. The Azure IP demo uses HTTP; it is not suitable for password entry or public account use until HTTPS and production email delivery are configured and verified.
 
 ## Evaluation scope and evidence
 
@@ -19,7 +19,7 @@ This report uses evidence already recorded in the repository and project log. It
 | Recommender behavior | Slot-recommender pytest suite recorded after dependency remediation | 90 passed. |
 | Frontend assets | Vite production build | Passed on the local Node 24.20.0 environment; CI is configured to build with Node 22.12.0. |
 | Application response time | 30 sequential samples on each of nine Laravel routes | All 270 responses returned HTTP 200 and were under 2,000 ms. Combined median 316.3 ms, P95 369.5 ms, maximum 461.5 ms. |
-| Recommendation model | Validation metrics in `ml/slot-recommender/models/baselines.json` | Random Forest validation F1 0.7246; Hit Rate@3 0.3612; MAE 3.682 hours. |
+| Recommendation model | Validation and held-out test metrics in `ml/slot-recommender/models/model_card.json` | Validation F1 0.7442; held-out test F1 0.7510; test Hit Rate@3 0.3675; test MAE 3.597 hours. |
 | User acceptance and usability | User-supplied Chapter 5 evaluation results; `docs/uat-sus-test-plan.md` | User confirms collected results: 20 UAT cases, summary 19/20 (95%), and 10 SUS scores averaging 78.0 (range 70.0-85.0). The case table marks all 20 Pass, so the UAT result needs reconciliation. Test date, environment, commit, raw SUS item responses, and study approval details are not recorded here. |
 | Azure demo | User-reported browser access and VM recommender `/health` output | Application responds over the VM IP; recommender reported `model_loaded: true`. HTTPS, SMTP delivery, and Google OAuth on the final public HTTPS URL remain unverified. |
 
@@ -33,13 +33,13 @@ This is a local single-client result against Laravel and MySQL. It does not esta
 
 The Random Forest outperformed the completion-rate-only and logistic-regression baselines on the recorded validation data:
 
-| Model | Validation F1 | Hit Rate@3 | MAE (hours) |
+| Model | Validation F1 (threshold) | Hit Rate@3 | MAE (hours) |
 | --- | ---: | ---: | ---: |
-| Completion-rate-only baseline | 0.6489 | 0.2757 | 4.655 |
-| Logistic regression | 0.6354 | 0.2703 | 4.711 |
-| Random Forest | 0.7246 | 0.3612 | 3.682 |
+| Completion-rate-only baseline | 0.6922 (0.2684) | 0.2757 | 4.655 |
+| Logistic regression | 0.6993 (0.3948) | 0.2703 | 4.711 |
+| Random Forest | 0.7442 (0.3823) | 0.3612 | 3.682 |
 
-The Random Forest did not meet the stated F1 target of greater than 0.75. Its cross-validation F1 of 0.7299 is a separate metric and is not a held-out test result. The model uses U.S. American Time Use Survey data; its proxy suitability labels and population differences limit conclusions about real Wasaa users, including users in Kenya. See [`system-architecture.md`](system-architecture.md) and the model documentation for details.
+F1 cutoffs were selected separately on validation data for each model. The Random Forest's untouched held-out test result at its validation-selected cutoff (0.3823) is F1 0.7510, precision 0.6369, and recall 0.9149; it meets the stated target narrowly. Test Hit Rate@3 is 0.3675 and MAE is 3.597 hours. Its cross-validation F1 of 0.7299 is a separate model-selection metric. The model uses U.S. American Time Use Survey data and proxy suitability labels, so these results do not establish real-user acceptance or accuracy for Wasaa users, including users in Kenya. See [`system-architecture.md`](system-architecture.md) and the model documentation for details.
 
 ### UAT and usability
 
@@ -83,7 +83,7 @@ The detailed operational steps are in [`azure-vm-deployment.md`](azure-vm-deploy
 
 The recorded software tests and local response-time measurements support the technical feasibility of the application. The slot recommender improves on its recorded baselines, while its validation F1 target remains unmet. The supplied SUS scores indicate a mean of 78.0, above the target, while the supplied UAT result reports 95%; the UAT case discrepancy and missing test metadata limit confidence in those conclusions. The no-show metrics do not match the current repository's implemented scope. Production-safe public access also remains outstanding because HTTPS, production email, and the final Google OAuth callback are not verified.
 
-Before closing #95, reconcile the UAT count, add the missing test metadata, confirm the SUS response records, and identify the no-show model build or remove those claims from the final evaluation. Then update the conclusions to match the evidence and link any follow-up issues.
+Before closing #95, reconcile the UAT count, add the missing test metadata and confirm the SUS response records. The no-show/activity-risk feature was removed; do not report its metrics as current app behavior.
 
 ## References
 

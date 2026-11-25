@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
         $user = User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
+            'timezone' => 'Africa/Nairobi',
         ]);
 
         User::factory()->admin()->create([

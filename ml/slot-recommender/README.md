@@ -1,7 +1,8 @@
 # Slot Recommender
 
-Random Forest service that predicts how suitable each hour of the day is for an activity
-category and returns the top-3 time slots. Developed with CRISP-DM.
+The population Random Forest predicts suitable hours for an activity category. For users
+who opt in and have enough outcomes, the service can use a separate personal model when it
+beats the population model on recent held-out outcomes. Developed with CRISP-DM.
 
 ## Structure
 
@@ -76,39 +77,63 @@ $headers = @{ "X-API-Key" = $env:ML_RETRAIN_KEY }
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:5001/retrain -Headers $headers
 ```
 
-On success, the endpoint reruns the training pipeline, reloads the model and completion
-lookup into the running process, and returns `cv_f1` and `best_params` from the model card.
+On success, the endpoint reruns the training pipeline, reloads the model, completion lookup,
+and validation-selected suitability threshold into the running process, and returns `cv_f1`,
+`best_params`, and `decision_threshold` from the model card.
 
-### Private commitment-risk endpoint
+### Personal models from Wasaa outcomes
 
-`POST /noshow/predict` is separate from the existing slot-recommendation `POST /predict` contract. It accepts only the approved derived feature object (category, priority, weekday, scheduled hour, duration, lead time, and prior recorded-outcome counts/rates). It accepts no user ID, schedule ID, titles, notes, or prototype booking ID.
+When a user opts in during registration or in Settings, Laravel sends only that user's
+completed and missed activity-log and schedule-occurrence outcomes from the previous 365
+days. Skipped and cancelled outcomes are excluded. Each example includes its category,
+local weekday and hour, duration, observed schedule density, gap since the prior outcome in
+that category, result, and a recency weight with a 180-day half-life. The service caps the
+history at the 2,000 most recent examples. Personal training uses category, weekday, hour,
+duration, and the ATUS completion-rate prior; weekday and hour are encoded as cyclic values.
+The extra context fields let the population model be compared on the same personal outcomes.
 
-The endpoint is disabled by default in both Flask and the Azure systemd unit. Enable it only after an approved-real model artifact and matching model card have been installed in the private `ml/no-show/models/` directory. Use a systemd override rather than editing the tracked unit:
+The service needs at least 120 outcomes, including at least 20 completed and 20 missed, to
+try a separate model for that user. It trains on earlier outcomes and holds out the most
+recent 20% (at least 30 outcomes). The held-out set must contain at least five outcomes of
+each type. Flask compares the personal model's recency-weighted Brier score with the
+population model on those same held-out outcomes and uses the personal model only when its
+score is lower. Its suitability cutoff is also selected from that user's held-out outcomes;
+the ATUS model's cutoff is not reused for personal scores. The selected model is fit on all
+of that user's examples for the current request; no per-user model or raw history is saved
+by Flask or shared with another user's request. If there is not enough history or the
+personal model does not beat the population model, Wasaa uses the population model plus its
+existing recency-weighted personal adjustment.
 
-```text
-WASAA_RISK_MODEL_ENABLED=true
-WASAA_RISK_MODEL_PATH=/var/www/wasaa/ml/no-show/models/commitment_risk.joblib
-WASAA_RISK_MODEL_CARD_PATH=/var/www/wasaa/ml/no-show/models/model_card.json
-```
+Turning personalization off means no personal history is sent. The population model remains
+available. The separate `POST /retrain` endpoint continues to train only the population
+model from ATUS data.
 
-Missing, disabled, incompatible, version-mismatched, or synthetic-only artifacts return HTTP 503 without affecting the existing recommender. The current Azure systemd unit binds Gunicorn to `127.0.0.1:5001`; keep port 5001 closed in the VM network security group.
+### Evaluation threshold
 
-Request example (illustrative values only):
+Training selects the suitability probability threshold that maximizes F1 on the respondent-
+held-out validation split. That threshold is stored in the model card and used by `/predict`
+for the `suitable` flag. The untouched test split is then scored once at that selected
+threshold; its metrics are recorded separately in the model card. Hit Rate@3 and MAE evaluate
+ranking and do not depend on the binary classification threshold.
 
-```json
-{
-  "category": "work",
-  "priority": "medium",
-  "weekday": 2,
-  "scheduled_hour": 14,
-  "duration_minutes": 60,
-  "lead_hours": 24,
-  "prior_labeled_count": 0,
-  "prior_missed_rate": null,
-  "prior_same_category_labeled_count": 0,
-  "prior_same_category_missed_rate": null
-}
-```
+This updates that user's ranking immediately without refitting the Random Forest after
+every event. `POST /retrain` still retrains the population model from ATUS files only; it
+does not use Wasaa outcomes. This separation avoids overfitting tiny, noisy histories and
+keeps one user's schedule data from changing recommendations for everyone else.
 
-The response contains a probability in `[0, 1]`, up to three positive logistic-contribution factors, and model name/version metadata. Invalid, missing, extra, or out-of-range fields receive HTTP 400. Service errors and unavailable models do not echo submitted values or identifiers. The endpoint itself does not create alerts or enable user-facing predictions; Laravel integration and alert controls are separate Sprint 8 issues.
+### User scheduling preferences
+
+Laravel sends the requested weekday's enabled availability hours and the user's preferred
+productivity-hour range with each recommendation request. The ranker excludes hours outside
+availability, keeps only start hours where the full requested duration ends by the
+selected window's closing time, ranks available hours inside the preferred range first, and then fills any
+remaining top-three slots from other available hours. The model confidence remains its
+original ATUS/user-history score. Settings periods map to morning 06:00–11:00, afternoon
+12:00–17:00, and evening 18:00–23:00; hours 00:00–05:00 are outside the selectable windows.
+If no periods are enabled for that weekday, the API returns a clear error asking the user
+to update availability.
+
+### No-show risk
+
+Wasaa does not include a no-show/activity-risk prediction or reminder feature. Flask exposes the time-slot recommendation contract at `POST /predict` and the protected ATUS retraining endpoint.
 

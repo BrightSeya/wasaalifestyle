@@ -8,6 +8,6 @@ class GoogleCalendarReauthorizationRequired extends RuntimeException
 {
     public function __construct()
     {
-        parent::__construct('Google Calendar access has expired or been revoked. Reconnect the account in Settings.');
+        parent::__construct('Google Calendar access has expired, been revoked, or is missing Google Tasks permission. Reconnect the account in Settings.');
     }
 }

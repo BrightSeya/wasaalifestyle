@@ -17,8 +17,8 @@ class Recommendation extends Model
         'user_id',
         'activity_id',
         'source_schedule_id',
+        'replacement_schedule_id',
         'source_occurrence_start',
-        'source_schedule_updated_at',
         'source_schedule_fingerprint',
         'category',
         'suggested_start',
@@ -35,11 +35,10 @@ class Recommendation extends Model
             'category' => Category::class,
             'suggested_start' => 'datetime',
             'suggested_end' => 'datetime',
+            'source_occurrence_start' => 'datetime',
             'confidence_score' => 'decimal:4',
             'is_suitable' => 'boolean',
             'generated_at' => 'datetime',
-            'source_occurrence_start' => 'datetime',
-            'source_schedule_updated_at' => 'datetime',
         ];
     }
 
@@ -57,4 +56,10 @@ class Recommendation extends Model
     {
         return $this->belongsTo(Schedule::class, 'source_schedule_id');
     }
+
+    public function replacementSchedule(): BelongsTo
+    {
+        return $this->belongsTo(Schedule::class, 'replacement_schedule_id');
+    }
+
 }

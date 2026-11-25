@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Activity;
 use App\Models\ActivityLog;
 use App\Models\Schedule;
+use App\Models\ScheduleOccurrenceOutcome;
 use App\Models\User;
 use App\Services\RecommendationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -47,7 +48,166 @@ class RecommendationServiceTest extends TestCase
                 && $request['category'] === 'exercise'
                 && $request['day_of_week'] === 0
                 && $request['duration_min'] === 45
-                && $request['gap_since_last_same_category_hrs'] === 24.0;
+                && $request['gap_since_last_same_category_hrs'] === 24.0
+                && ! isset($request['personal_history']);
+        });
+    }
+
+    public function test_available_hours_only_include_starts_where_the_full_duration_fits(): void
+    {
+        Http::fake(['*/predict' => Http::response(['recommendations' => []])]);
+
+        $user = User::factory()->create();
+        $activity = Activity::factory()->for($user)->create(['duration_minutes' => 60]);
+
+        $this->service()->recommend($user, $activity, Carbon::parse('2026-09-28')); // Monday
+
+        Http::assertSent(fn ($request) => $request['available_hours'] === [6, 7, 8, 9, 10, 12, 13, 14, 15, 16]);
+    }
+
+    public function test_day_with_no_enabled_availability_periods_returns_a_clear_error(): void
+    {
+        Http::fake([
+            '*/predict' => Http::response([
+                'error' => 'No available time window is long enough for this activity on this day. Update availability or reduce the activity duration.',
+            ], 422),
+        ]);
+
+        $user = User::factory()->create(['preferences' => [
+            'availability' => ['mon' => ['morning' => false, 'afternoon' => false, 'evening' => false]],
+        ]]);
+        $activity = Activity::factory()->for($user)->create(['duration_minutes' => 60]);
+
+        $result = $this->service()->recommend($user, $activity, Carbon::parse('2026-09-28')); // Monday
+
+        $this->assertFalse($result['ok']);
+        $this->assertStringContainsString('Update availability', $result['message']);
+        Http::assertSent(fn ($request) => $request['available_hours'] === []);
+    }
+
+    public function test_activity_longer_than_every_enabled_period_has_no_available_start_hours(): void
+    {
+        Http::fake([
+            '*/predict' => Http::response([
+                'error' => 'No available time window is long enough for this activity on this day. Update availability or reduce the activity duration.',
+            ], 422),
+        ]);
+
+        $user = User::factory()->create();
+        $activity = Activity::factory()->for($user)->create(['duration_minutes' => 360]);
+
+        $result = $this->service()->recommend($user, $activity, Carbon::parse('2026-09-28')); // Monday
+
+        $this->assertFalse($result['ok']);
+        Http::assertSent(fn ($request) => $request['available_hours'] === []);
+    }
+
+    public function test_request_sends_only_the_users_recent_completed_and_missed_outcomes(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-16 12:00:00'));
+        Http::fake(['*/predict' => Http::response(['recommendations' => []])]);
+
+        $user = User::factory()->create(['preferences' => ['personalize_recommendations' => true]]);
+        $activity = Activity::factory()->for($user)->create(['category' => 'exercise']);
+        $otherCategory = Activity::factory()->for($user)->create(['category' => 'work']);
+        $otherUser = User::factory()->create();
+        $otherUsersActivity = Activity::factory()->for($otherUser)->create(['category' => 'exercise']);
+
+        ActivityLog::factory()->for($activity)->create([
+            'status' => 'completed',
+            'scheduled_for' => Carbon::parse('2026-11-10 10:30:00'),
+        ]);
+        ActivityLog::factory()->for($activity)->create([
+            'status' => 'missed',
+            'scheduled_for' => Carbon::parse('2026-11-10 10:45:00'),
+        ]);
+        ActivityLog::factory()->for($otherCategory)->create([
+            'status' => 'completed',
+            'scheduled_for' => Carbon::parse('2026-11-10 10:15:00'),
+        ]);
+        ActivityLog::factory()->for($activity)->create([
+            'status' => 'skipped',
+            'scheduled_for' => Carbon::parse('2026-11-10 11:00:00'),
+        ]);
+        ActivityLog::factory()->for($otherUsersActivity)->create([
+            'status' => 'completed',
+            'scheduled_for' => Carbon::parse('2026-11-10 10:00:00'),
+        ]);
+
+        $this->service()->recommend($user, $activity, Carbon::parse('2026-11-17')); // Tuesday
+
+        Http::assertSent(function ($request) {
+            $feedback = $request['user_feedback'];
+            $history = $request['personal_history'];
+
+            return array_keys($feedback) === ['1:10']
+                && $feedback['1:10']['category_total'] > 1.9
+                && $feedback['1:10']['category_total'] < 2.0
+                && $feedback['1:10']['category_completed'] > 0.9
+                && $feedback['1:10']['category_completed'] < 1.0
+                && $feedback['1:10']['other_total'] > 0.9
+                && $feedback['1:10']['other_total'] < 1.0
+                && $feedback['1:10']['other_completed'] === $feedback['1:10']['other_total']
+                && count($history) === 3
+                && array_column($history, 'category') === ['work', 'exercise', 'exercise']
+                && array_column($history, 'label') === [1, 1, 0]
+                && $history[0]['schedule_density'] === 2
+                && $history[1]['gap_since_last_same_category_hrs'] === 24.0
+                && $history[2]['gap_since_last_same_category_hrs'] === 0.25
+                && array_keys($history[0]) === [
+                    'category',
+                    'day_of_week',
+                    'hour',
+                    'duration_min',
+                    'schedule_density',
+                    'gap_since_last_same_category_hrs',
+                    'label',
+                    'weight',
+                    'occurred_at',
+                ];
+        });
+    }
+
+    public function test_schedule_occurrence_outcomes_are_sent_as_personal_training_examples(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-16 12:00:00'));
+        Http::fake(['*/predict' => Http::response(['recommendations' => []])]);
+
+        $user = User::factory()->create(['preferences' => ['personalize_recommendations' => true]]);
+        $activity = Activity::factory()->for($user)->create(['category' => 'exercise']);
+        $schedule = Schedule::factory()->for($user)->create([
+            'category' => 'work',
+            'start_datetime' => Carbon::parse('2026-11-10 08:00:00'),
+            'end_datetime' => Carbon::parse('2026-11-10 09:00:00'),
+        ]);
+        ScheduleOccurrenceOutcome::create([
+            'schedule_id' => $schedule->id,
+            'occurrence_start' => Carbon::parse('2026-11-10 08:00:00'),
+            'occurrence_end' => Carbon::parse('2026-11-10 09:00:00'),
+            'outcome' => 'completed',
+            'recorded_at' => Carbon::parse('2026-11-10 09:05:00'),
+        ]);
+
+        $this->service()->recommend($user, $activity);
+
+        Http::assertSent(function ($request) {
+            if (count($request['personal_history']) !== 1) {
+                return false;
+            }
+            $example = $request['personal_history'][0];
+            $weight = $example['weight'];
+            unset($example['weight']);
+
+            return $example === [
+                'category' => 'work',
+                'day_of_week' => 1,
+                'hour' => 8,
+                'duration_min' => 60,
+                'schedule_density' => 0,
+                'gap_since_last_same_category_hrs' => 24.0,
+                'label' => 1,
+                'occurred_at' => Carbon::parse('2026-11-10 08:00:00')->getTimestamp(),
+            ] && $weight > 0 && $weight <= 1;
         });
     }
 

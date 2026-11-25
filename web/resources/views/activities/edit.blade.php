@@ -6,7 +6,7 @@
 
         <div class="mt-6 flex gap-3">
             <a href="{{ route('activities.index') }}" class="flex-1 rounded-md border border-gray-300 py-2 text-center text-sm">Cancel</a>
-            <button type="submit" class="flex-1 rounded-md bg-brand py-2 text-sm font-semibold hover:bg-brand-dark">Save Changes</button>
+            <button type="submit" class="flex-1 rounded-md bg-brand py-2 text-sm font-semibold hover:bg-brand-dark">Save Activity and Plan</button>
         </div>
     </form>
 

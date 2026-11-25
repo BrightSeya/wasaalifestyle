@@ -56,7 +56,7 @@ class DashboardTest extends TestCase
             ->assertSee('aria-label="2 schedule entries in the next 7 days"', false);
     }
 
-    public function test_dashboard_shows_pending_recommendations_unread_notifications_and_completion_chart(): void
+    public function test_dashboard_shows_recommendation_entry_point_unread_notifications_and_completion_chart(): void
     {
         $user = User::factory()->create();
         $otherUser = User::factory()->create();
@@ -79,7 +79,8 @@ class DashboardTest extends TestCase
 
         $this->actingAs($user)->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('aria-label="1 pending recommendations"', false)
+            ->assertSee('Explore better times')
+            ->assertSee('Review suggestions for 1 current activity')
             ->assertSee('aria-label="1 unread notifications"', false)
             ->assertSee('id="dashboard-completion-chart"', false)
             ->assertSee('&quot;percentage&quot;:100', false);
@@ -93,7 +94,8 @@ class DashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Your week has room to take shape.')
             ->assertSee('Log an activity to start seeing your progress here.')
-            ->assertSee('aria-label="0 pending recommendations"', false)
+            ->assertSee('Explore better times')
+            ->assertSee('Review suggestions for 0 current activities')
             ->assertSee('aria-label="0 unread notifications"', false)
             ->assertSee('id="dashboard-completion-chart"', false);
     }

@@ -22,7 +22,7 @@
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
                             <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                {{ $notification->isCommitmentRiskAlert() ? 'Commitment risk alert' : str($notification->type)->replace('_', ' ')->title() }}
+                                {{ str($notification->type)->replace('_', ' ')->title() }}
                                 @unless ($notification->is_read)
                                     <span class="ml-2 rounded-full bg-brand/30 px-2 py-0.5 normal-case">Unread</span>
                                 @endunless
@@ -38,25 +38,20 @@
                                 {{ $notification->created_at->format('M j, Y g:i A') }}
                             </time>
                         </div>
-                        @if ($notification->isCommitmentRiskAlert())
-                            <div class="flex flex-wrap gap-3">
-                                <form method="POST" action="{{ route('notifications.alternatives', $notification) }}">
-                                    @csrf
-                                    <button type="submit" class="text-xs font-semibold text-brand-dark underline">Find a better time</button>
-                                </form>
-                                <form method="POST" action="{{ route('notifications.dismiss', $notification) }}">
+                        <div class="flex flex-wrap items-center gap-3">
+                            @if (! $notification->is_read)
+                                <form method="POST" action="{{ route('notifications.read', $notification) }}">
                                     @csrf
                                     @method('PATCH')
-                                    <button type="submit" class="text-xs font-semibold text-gray-700 underline">Dismiss</button>
+                                    <button type="submit" class="text-xs font-semibold text-gray-700 underline">Mark as read</button>
                                 </form>
-                            </div>
-                        @elseif (! $notification->is_read)
-                            <form method="POST" action="{{ route('notifications.read', $notification) }}">
+                            @endif
+                            <form method="POST" action="{{ route('notifications.destroy', $notification) }}" onsubmit="return confirm('Delete this notification?')">
                                 @csrf
-                                @method('PATCH')
-                                <button type="submit" class="text-xs font-semibold text-gray-700 underline">Mark as read</button>
+                                @method('DELETE')
+                                <button type="submit" class="text-xs font-semibold text-rose-700 underline decoration-rose-300 underline-offset-2 hover:text-rose-900">Delete</button>
                             </form>
-                        @endunless
+                        </div>
                     </div>
                 </article>
             @endforeach

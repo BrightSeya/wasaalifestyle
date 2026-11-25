@@ -20,8 +20,8 @@
             </a>
             <a href="{{ route('recommendations.index') }}" class="dashboard-stat group rounded-2xl border border-gray-200/80 bg-white p-4 shadow-sm sm:p-5">
                 <div class="flex items-center justify-between gap-3"><p class="text-xs font-semibold text-gray-600">Recommendations</p><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-50 text-orange-800"><x-icon name="sparkles" class="h-[18px] w-[18px]" /></span></div>
-                <p class="mt-3 text-3xl font-semibold tracking-tight text-gray-950" aria-label="{{ $pendingRecommendationCount }} pending recommendations">{{ $pendingRecommendationCount }}</p>
-                <p class="mt-1 text-[11px] text-gray-500">Suggestions ready for your review</p>
+                <p class="mt-3 text-lg font-semibold tracking-tight text-gray-950">Explore better times</p>
+                <p class="mt-1 text-[11px] text-gray-500">Review suggestions for {{ $recommendationActivityCount }} current {{ Str::plural('activity', $recommendationActivityCount) }}</p>
             </a>
             <a href="{{ route('notifications.index') }}" class="dashboard-stat group rounded-2xl border border-gray-200/80 bg-white p-4 shadow-sm sm:p-5">
                 <div class="flex items-center justify-between gap-3"><p class="text-xs font-semibold text-gray-600">Notifications</p><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 text-rose-700"><x-icon name="bell" class="h-[18px] w-[18px]" /></span></div>
@@ -54,7 +54,7 @@
                                     @foreach ($dayEntries as $entry)
                                         <li class="flex flex-wrap items-center justify-between gap-2 py-3">
                                             <div class="min-w-0"><p class="truncate text-sm font-semibold text-gray-900">{{ $entry->schedule->title }}</p><p class="mt-1 text-[11px] text-gray-500">{{ ucfirst($entry->schedule->category->value) }} @if ($entry->schedule->is_recurring) <span class="px-1 text-gray-300">·</span>{{ ucfirst($entry->schedule->recurrence_rule) }} @endif</p></div>
-                                            <time class="rounded-lg bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-700">{{ $entry->start->format('g:i A') }}–{{ $entry->end->format('g:i A') }}</time>
+                                            <time class="rounded-lg bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-700">{{ $entry->schedule->is_all_day ? 'All day' : $entry->start->format('g:i A').'–'.$entry->end->format('g:i A') }}</time>
                                         </li>
                                     @endforeach
                                 </ul>

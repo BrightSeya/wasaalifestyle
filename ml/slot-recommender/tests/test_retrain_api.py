@@ -11,10 +11,10 @@ import api
 
 @pytest.fixture
 def client():
-    original_model, original_lookup = api.model, api.lookup
+    original_model, original_lookup, original_threshold = api.model, api.lookup, api.suitability_threshold
     api.app.testing = True
     yield api.app.test_client()
-    api.model, api.lookup = original_model, original_lookup
+    api.model, api.lookup, api.suitability_threshold = original_model, original_lookup, original_threshold
 
 
 def test_retrain_requires_a_configured_key(client, monkeypatch):
@@ -62,6 +62,7 @@ def test_retrain_runs_training_reloads_artifacts_and_returns_model_card(tmp_path
         model_card_path.write_text(json.dumps({
             "cv_f1": 0.73,
             "best_params": {"n_estimators": 300},
+            "decision_threshold": 0.42,
         }), encoding="utf-8")
 
     monkeypatch.setattr(api.train, "main", fake_train)
@@ -71,7 +72,7 @@ def test_retrain_runs_training_reloads_artifacts_and_returns_model_card(tmp_path
     assert response.status_code == 200
     assert response.get_json() == {
         "status": "ok",
-        "model_card": {"cv_f1": 0.73, "best_params": {"n_estimators": 300}},
+        "model_card": {"cv_f1": 0.73, "best_params": {"n_estimators": 300}, "decision_threshold": 0.42},
     }
     assert trained == [True]
     assert api.model == {"version": "new"}

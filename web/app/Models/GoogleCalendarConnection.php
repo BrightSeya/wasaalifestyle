@@ -9,6 +9,7 @@ class GoogleCalendarConnection extends Model
 {
     protected $fillable = [
         'user_id',
+        'google_account_email',
         'access_token',
         'refresh_token',
         'scope',

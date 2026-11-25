@@ -10,7 +10,6 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisterController;
-use App\Http\Controllers\CommitmentRiskAlternativeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GoogleCalendarConnectionController;
 use App\Http\Controllers\GoogleCalendarImportController;
@@ -59,9 +58,8 @@ Route::middleware(['auth', 'account.active'])->group(function () {
 Route::middleware(['auth', 'account.active', 'verified'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
-    Route::patch('/notifications/{notification}/dismiss', [NotificationController::class, 'dismiss'])->name('notifications.dismiss');
-    Route::post('/notifications/{notification}/alternatives', [CommitmentRiskAlternativeController::class, 'store'])->name('notifications.alternatives');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
     Route::get('/schedules/week', ScheduleWeekController::class)->name('schedules.week');
     Route::get('/schedules/day', ScheduleDayController::class)->name('schedules.day');
@@ -72,6 +70,7 @@ Route::middleware(['auth', 'account.active', 'verified'])->group(function () {
     Route::resource('schedules', ScheduleController::class)->except('show');
     Route::resource('activities', ActivityController::class)->except('show');
     Route::post('/activities/{activity}/log', [ActivityController::class, 'log'])->name('activities.log');
+    Route::post('/activities/weekly-plan/recommendations', [RecommendationController::class, 'previewActivityPlan'])->name('activities.weekly-plan.preview');
 
     Route::get('/settings', [ProfileController::class, 'edit'])->name('settings.edit');
     Route::put('/settings/profile', [ProfileController::class, 'update'])->name('settings.profile');
@@ -82,7 +81,9 @@ Route::middleware(['auth', 'account.active', 'verified'])->group(function () {
     Route::delete('/settings/google-calendar', [GoogleCalendarConnectionController::class, 'disconnect'])->name('settings.google-calendar.disconnect');
 
     Route::get('/recommendations', [RecommendationController::class, 'index'])->name('recommendations.index');
+    Route::post('/recommendations/preview-task', [RecommendationController::class, 'previewTask'])->name('recommendations.preview-task');
     Route::post('/activities/{activity}/recommendations', [RecommendationController::class, 'store'])->name('recommendations.store');
+    Route::post('/activities/{activity}/recommendations/choose', [RecommendationController::class, 'chooseActivitySlot'])->name('recommendations.choose-activity-slot');
     Route::post('/recommendations/{recommendation}/accept', [RecommendationController::class, 'accept'])->name('recommendations.accept');
     Route::post('/recommendations/{recommendation}/dismiss', [RecommendationController::class, 'dismiss'])->name('recommendations.dismiss');
 

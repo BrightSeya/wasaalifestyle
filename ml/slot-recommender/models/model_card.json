@@ -37,6 +37,24 @@
   "data_files": [
     "train.csv",
     "val.csv",
+    "test.csv",
     "completion_rate_lookup.csv"
-  ]
+  ],
+  "decision_threshold": 0.38228195690015954,
+  "validation_metrics": {
+    "precision": 0.6307321622882015,
+    "recall": 0.9075658446569368,
+    "f1": 0.7442393671901869,
+    "hit_rate_at_3": 0.36123692892691384,
+    "mae_hours": 3.6819884806799754,
+    "decision_threshold": 0.38228195690015954
+  },
+  "test_metrics": {
+    "precision": 0.6369257259137513,
+    "recall": 0.9149474394288606,
+    "f1": 0.7510324619892486,
+    "hit_rate_at_3": 0.36747428185957615,
+    "mae_hours": 3.5972230029793693,
+    "decision_threshold": 0.38228195690015954
+  }
 }

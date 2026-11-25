@@ -27,5 +27,3 @@ ml/**/models/*.joblib
 web/storage/app/private/no-show/
 ml/no-show/models/
 ml/no-show/reports/
-ml/no-show/models/
-ml/no-show/reports/
