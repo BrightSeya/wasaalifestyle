@@ -10,7 +10,6 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisterController;
-use App\Http\Controllers\CommitmentRiskAlternativeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GoogleCalendarConnectionController;
 use App\Http\Controllers\GoogleCalendarImportController;
@@ -61,8 +60,6 @@ Route::middleware(['auth', 'account.active', 'verified'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
-    Route::patch('/notifications/{notification}/dismiss', [NotificationController::class, 'dismiss'])->name('notifications.dismiss');
-    Route::post('/notifications/{notification}/alternatives', [CommitmentRiskAlternativeController::class, 'store'])->name('notifications.alternatives');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
     Route::get('/schedules/week', ScheduleWeekController::class)->name('schedules.week');
     Route::get('/schedules/day', ScheduleDayController::class)->name('schedules.day');

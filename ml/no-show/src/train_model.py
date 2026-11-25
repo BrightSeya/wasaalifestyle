@@ -35,7 +35,6 @@ from upstream_cold_start import (  # noqa: E402
     predict_wasaa_probability,
 )
 
-
 FEATURES = [
     "category",
     "priority",
@@ -275,6 +274,8 @@ def predict_probability(bundle: dict[str, Any], feature_rows: pd.DataFrame) -> n
             personalize_upstream_probability(probability, row)
             for probability, row in zip(probabilities, feature_rows.to_dict("records"), strict=True)
         ])
+    if bundle.get("model_type") != "wasaalifestyle-approved-real-v1":
+        raise ValueError("Only approved-real Wasaa model artifacts are supported")
     if list(bundle["features"]) != FEATURES or set(feature_rows.columns) != set(FEATURES):
         raise ValueError("Inference rows must match the approved Wasaa feature schema")
     raw_probabilities = bundle["model"].predict_proba(feature_rows[FEATURES])[:, 1]
@@ -285,6 +286,8 @@ def explain_factors(bundle: dict[str, Any], feature_row: dict[str, Any], limit: 
     """Return the strongest positive logistic contributions without exposing IDs or raw text."""
     if bundle.get("model_type") == UPSTREAM_COLD_START_MODEL_TYPE:
         return explain_wasaa_factors(bundle, feature_row, limit=limit)
+    if bundle.get("model_type") != "wasaalifestyle-approved-real-v1":
+        raise ValueError("Only approved-real Wasaa model artifacts are supported")
     if list(bundle["features"]) != FEATURES or set(feature_row) != set(FEATURES):
         raise ValueError("Explanation row must match the approved Wasaa feature schema")
 

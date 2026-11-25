@@ -12,7 +12,6 @@ class NotificationController extends Controller
     public function index(Request $request): View
     {
         $notifications = $request->user()->notifications()
-            ->whereNull('dismissed_at')
             ->with('schedule')
             ->orderByDesc('created_at')
             ->orderByDesc('id')
@@ -34,16 +33,6 @@ class NotificationController extends Controller
         $request->user()->notifications()->where('is_read', false)->update(['is_read' => true]);
 
         return back()->with('status', 'All notifications marked as read.');
-    }
-
-    public function dismiss(Request $request, Notification $notification): RedirectResponse
-    {
-        $ownedNotification = $request->user()->notifications()->findOrFail($notification->id);
-        abort_unless($ownedNotification->isCommitmentRiskAlert(), 404);
-
-        $ownedNotification->update(['dismissed_at' => now(), 'is_read' => true]);
-
-        return back()->with('status', 'Commitment alert dismissed.');
     }
 
     public function destroy(Request $request, Notification $notification): RedirectResponse

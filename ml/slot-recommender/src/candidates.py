@@ -42,7 +42,7 @@ def build_candidates(request, lookup):
     return candidates[FEATURE_COLUMNS]
 
 
-def score_candidates(request, lookup, score_fn, user_feedback=None, excluded_hours=None):
+def score_candidates(request, lookup, score_fn, user_feedback=None, excluded_hours=None, available_hours=None, preferred_hours=None):
     """Candidates for request, with a 'score' column, ranked best (most suitable) first.
 
     score_fn: any callable(DataFrame[FEATURE_COLUMNS]) -> array-like of scores, e.g.
@@ -79,15 +79,25 @@ def score_candidates(request, lookup, score_fn, user_feedback=None, excluded_hou
     if excluded_hours:
         scored = scored[~scored["hour"].isin(excluded_hours)]
 
+    if available_hours is not None:
+        scored = scored[scored["hour"].isin(available_hours)]
+
+    if preferred_hours is not None:
+        scored["_preferred"] = scored["hour"].isin(preferred_hours)
+        scored = scored.sort_values(["_preferred", "score"], ascending=[False, False], kind="stable")
+        scored = scored.drop(columns=["_preferred"])
+
+        return scored.reset_index(drop=True)
+
     return scored.sort_values("score", ascending=False).reset_index(drop=True)
 
 
-def rank_hours(request, lookup, score_fn, user_feedback=None, excluded_hours=None):
+def rank_hours(request, lookup, score_fn, user_feedback=None, excluded_hours=None, available_hours=None, preferred_hours=None):
     """All 24 candidate hours, best first."""
-    return score_candidates(request, lookup, score_fn, user_feedback, excluded_hours)["hour"].tolist()
+    return score_candidates(request, lookup, score_fn, user_feedback, excluded_hours, available_hours, preferred_hours)["hour"].tolist()
 
 
-def top_k_hours(request, lookup, score_fn, k=3, user_feedback=None, excluded_hours=None):
+def top_k_hours(request, lookup, score_fn, k=3, user_feedback=None, excluded_hours=None, available_hours=None, preferred_hours=None):
     """The top-k candidate hours as the API would return them: [{hour, score}, ...]."""
-    ranked = score_candidates(request, lookup, score_fn, user_feedback, excluded_hours)
+    ranked = score_candidates(request, lookup, score_fn, user_feedback, excluded_hours, available_hours, preferred_hours)
     return ranked.head(k)[["hour", "score"]].to_dict("records")

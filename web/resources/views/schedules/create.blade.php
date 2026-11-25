@@ -14,7 +14,7 @@
             <div class="border-b border-amber-100 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-5">
                 <p class="text-xs font-bold uppercase tracking-[.16em] text-amber-800">Wasaa time guide</p>
                 <h2 id="task-recommendations-title" class="mt-1 font-semibold text-gray-950">Find a better time</h2>
-                <p class="mt-1 text-sm leading-6 text-gray-600">Fill in the task details first. We’ll suggest other times that fit its category and duration.</p>
+                <p class="mt-1 text-sm leading-6 text-gray-600">Choose the date in Task details, then get times that fit that specific day, your availability, and the task duration.</p>
             </div>
             <div class="p-5">
             <button type="button" data-task-recommend-button disabled class="mt-1 w-full rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-bold text-gray-400 shadow-sm transition disabled:cursor-not-allowed enabled:bg-brand enabled:text-gray-950 enabled:hover:bg-brand-dark enabled:focus-visible:outline-none enabled:focus-visible:ring-2 enabled:focus-visible:ring-amber-600 enabled:focus-visible:ring-offset-2">
@@ -22,7 +22,19 @@
             </button>
             <p class="mt-3 text-sm text-gray-600" data-task-recommend-status aria-live="polite"></p>
             <div class="mt-3 space-y-2" data-task-recommendations></div>
-            <p class="mt-4 border-t border-gray-100 pt-3 text-[11px] leading-5 text-gray-500">Suggestions use your recent outcomes when available. New routines start from ATUS patterns and adapt as you record activity outcomes.</p>
+            <details class="mt-4 border-t border-gray-100 pt-4" data-specific-task-date>
+                <summary class="cursor-pointer text-sm font-semibold text-gray-800">Looking for a time on a specific date?</summary>
+                <p class="mt-2 text-xs leading-5 text-gray-600">Choose a date and Wasaa will find available times for that day.</p>
+                <div class="mt-3 flex flex-wrap items-end gap-2">
+                    <div>
+                        <label for="recommendation-date" class="mb-1 block text-xs font-medium text-gray-700">Date</label>
+                        <input id="recommendation-date" type="date" min="{{ today()->toDateString() }}" required data-recommendation-date class="rounded-lg border-gray-300 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                    <button type="button" data-open-recommendation-calendar class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100">Open calendar</button>
+                    <button type="button" data-find-date-times class="rounded-lg bg-brand px-3 py-2 text-xs font-bold text-gray-950 hover:bg-brand-dark">Find times for this date</button>
+                </div>
+            </details>
+            <p class="mt-4 border-t border-gray-100 pt-3 text-[11px] leading-5 text-gray-500">Suggestions use your saved availability and, if enabled, your recent outcomes. New routines start from ATUS patterns.</p>
             </div>
         </aside>
     </div>
@@ -31,12 +43,32 @@
         (() => {
             const form = document.querySelector('[data-task-form]');
             const button = document.querySelector('[data-task-recommend-button]');
+            const dateInput = form?.querySelector('[name="date"]');
+            const recommendationDateInput = document.querySelector('[data-recommendation-date]');
             const status = document.querySelector('[data-task-recommend-status]');
             const results = document.querySelector('[data-task-recommendations]');
             if (!form || !button) return;
-            const sync = () => { button.disabled = !form.checkValidity(); };
+            recommendationDateInput.value = dateInput.value;
+            document.querySelector('[data-open-recommendation-calendar]').addEventListener('click', () => {
+                if (typeof recommendationDateInput.showPicker === 'function') recommendationDateInput.showPicker();
+                else recommendationDateInput.focus();
+            });
+            const sync = () => {
+                button.disabled = !form.checkValidity();
+                if (recommendationDateInput.value !== dateInput.value) recommendationDateInput.value = dateInput.value;
+            };
             form.addEventListener('input', sync);
             form.addEventListener('change', sync);
+            recommendationDateInput.addEventListener('change', () => {
+                dateInput.value = recommendationDateInput.value;
+                sync();
+            });
+            document.querySelector('[data-find-date-times]').addEventListener('click', () => {
+                if (!recommendationDateInput.reportValidity()) return;
+                dateInput.value = recommendationDateInput.value;
+                sync();
+                if (form.reportValidity()) button.click();
+            });
             sync();
 
             const timeValue = value => {
@@ -57,7 +89,7 @@
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.message || 'Recommendations are temporarily unavailable.');
                     const suggestions = data.recommendations.slice(0, 4);
-                    if (!suggestions.length) { status.textContent = 'No alternative times were found for these details.'; return; }
+                    if (!suggestions.length) { status.textContent = 'No suitable times fit this date, availability, duration, and schedule. Choose another date or adjust the task details.'; return; }
                     status.textContent = 'Choose a time to update the task form. You can review it before saving.';
                     suggestions.forEach((slot, index) => {
                         const start = new Date(slot.start);

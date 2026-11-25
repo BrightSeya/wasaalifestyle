@@ -8,6 +8,7 @@ use App\Services\ConflictChecker;
 use App\Services\ConflictNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
@@ -77,7 +78,7 @@ class ScheduleController extends Controller
             return back()->withInput()->with('conflicts', $conflicts->pluck('message')->all());
         }
 
-        $schedule->update($data);
+        DB::transaction(fn () => $schedule->update($data));
 
         if ($conflicts->isNotEmpty()) {
             $notifications->create($request->user(), $schedule, $conflicts);

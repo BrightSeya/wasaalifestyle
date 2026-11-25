@@ -68,7 +68,9 @@ Open **Recommendations** to review pending suggested times. Each suggestion show
 - Select **Dismiss** to remove a suggestion you do not want.
 - If the suggestion overlaps your schedule, review the warning. Change your schedule if needed, or select **Confirm anyway** to accept the overlap intentionally.
 
-If no recommendations are listed, open **Activities** and select **Get recommendation** beside an activity. If Wasaa reports that recommendations are unavailable, try again later or schedule the activity manually.
+Use **Activities** for repeatable routines such as exercise or studying. Select **Get recommendation** to see a plan for the next seven days based on the activity's weekly frequency. Wasaa chooses that many separate days where possible and shows up to three time options, each with a confidence score, for every chosen day. Choose one time for each day you want to add to your schedule. A frequency of one produces one recommended day; a one-off event belongs in **Schedule** instead.
+
+For a one-off task on a particular day, open **Schedule** and choose **New task**. Expand **Looking for a time on a specific date?** at the bottom of the time guide, choose a date in the calendar, and select **Find times for this date**. The chosen date is copied into **Task details**. Wasaa finds times for that date using its weekday availability, the task duration, and schedule conflicts. Pick a suggested time to update the form, review it, and save.
 
 ## Notifications
 
@@ -89,9 +91,8 @@ Open **Change password**, enter your current password, enter a new password, and
 ### Availability and preferences
 
 - Under **Weekly Availability Windows**, choose the morning, afternoon, and evening periods when Wasaa may schedule tasks for each day.
-- Under **Productivity Preferences**, set your peak start and end hours and preferred break duration.
-- Under **No-show predictions and learning**, choose whether Wasaa may use your completed and missed activity outcomes to estimate risk and personalize future estimates. New users can opt in during signup. Initial estimates use synthetic booking data and may be inaccurate; prototype alerts are labelled. Turning the feature off stops future risk assessments and alerts.
-- Under **Notification Alerts**, choose whether to receive schedule conflict, daily summary, recommendation, and no-show alerts. No-show alerts are in-app only and require **No-show predictions and learning** to be enabled.
+- Under **Productivity Preferences**, set your peak start and end hours and preferred break duration. Recommendations exclude disabled availability periods and rank available times inside your peak hours first. Availability periods correspond to 06:00–11:00, 12:00–17:00, and 18:00–23:00; if none are selected for a day, enable one to receive recommendations for that day.
+- Under **Notification Alerts**, choose whether to receive schedule conflict, daily summary, and recommendation alerts.
 - Select **Save preferences** to save these changes. Email alert delivery also depends on the website's email service being configured by its administrator.
 
 ### Dark mode

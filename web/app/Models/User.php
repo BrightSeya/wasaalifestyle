@@ -32,7 +32,6 @@ class User extends Authenticatable implements MustVerifyEmail
         'profile_photo_path',
         'password',
         'preferences',
-        'commitment_risk_consent_at',
         'recommendation_personalization_consent_at',
     ];
 
@@ -58,7 +57,6 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'preferences' => 'array',
-            'commitment_risk_consent_at' => 'datetime',
             'recommendation_personalization_consent_at' => 'datetime',
             'session_version' => 'integer',
         ];

@@ -129,9 +129,9 @@
                     <thead class="text-xs uppercase text-gray-500">
                         <tr>
                             <th class="py-1"></th>
-                            <th class="py-1">Morning</th>
-                            <th class="py-1">Afternoon</th>
-                            <th class="py-1">Evening</th>
+                            <th class="py-1">Morning <span class="font-normal normal-case">(06:00–11:00)</span></th>
+                            <th class="py-1">Afternoon <span class="font-normal normal-case">(12:00–17:00)</span></th>
+                            <th class="py-1">Evening <span class="font-normal normal-case">(18:00–23:00)</span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -190,21 +190,10 @@
                                class="h-5 w-9 rounded-full border-gray-300 text-brand focus:ring-brand">
                     </label>
 
-                    <label class="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white p-3">
-                        <span>
-                            <span class="block text-sm font-medium">No-show predictions and learning</span>
-                            <span class="block text-xs leading-5 text-gray-500">Use your completed and missed activity outcomes to estimate risk and personalize your future estimates. Your outcome history is not pooled into other users' predictions. The cold-start model uses synthetic booking data and may be inaccurate. Turning this off stops future predictions and alerts. You can change this at any time.</span>
-                        </span>
-                        <input type="checkbox" name="commitment_risk_enabled" value="1"
-                               @checked(old('commitment_risk_enabled', $preferences->commitmentRiskEnabled))
-                               class="h-5 w-9 rounded-full border-gray-300 text-brand focus:ring-brand">
-                    </label>
-
                     @foreach ([
                         'notify_conflicts' => ['Schedule Conflict Alerts', 'Notify when double-booking happens', $preferences->notifyConflicts],
                         'notify_daily_summary' => ['Daily Schedule Summary', 'Send morning email preview of the day', $preferences->notifyDailySummary],
                         'notify_recommendations' => ['Recommendation Alerts', 'When optimal slot improvements are found', $preferences->notifyRecommendations],
-                        'notify_commitment_risk' => ['No-show in-app alerts', 'Receive an in-app reminder about an upcoming activity when its estimated risk meets the alert threshold. Requires no-show predictions to be enabled. No email or push alerts are sent.', $preferences->notifyCommitmentRisk],
                     ] as $name => [$title, $description, $current])
                         <label class="flex items-center justify-between gap-4">
                             <span>

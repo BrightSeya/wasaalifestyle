@@ -23,8 +23,6 @@ final readonly class UserPreferences
         public bool $notifyConflicts,
         public bool $notifyDailySummary,
         public bool $notifyRecommendations,
-        public bool $commitmentRiskEnabled,
-        public bool $notifyCommitmentRisk,
         public bool $personalizeRecommendations,
     ) {}
 
@@ -44,8 +42,6 @@ final readonly class UserPreferences
             notifyConflicts: true,
             notifyDailySummary: true,
             notifyRecommendations: true,
-            commitmentRiskEnabled: false,
-            notifyCommitmentRisk: false,
             personalizeRecommendations: false,
         );
     }
@@ -75,8 +71,6 @@ final readonly class UserPreferences
             notifyConflicts: (bool) ($raw['notify_conflicts'] ?? $defaults->notifyConflicts),
             notifyDailySummary: (bool) ($raw['notify_daily_summary'] ?? $defaults->notifyDailySummary),
             notifyRecommendations: (bool) ($raw['notify_recommendations'] ?? $defaults->notifyRecommendations),
-            commitmentRiskEnabled: (bool) ($raw['commitment_risk_enabled'] ?? $defaults->commitmentRiskEnabled),
-            notifyCommitmentRisk: (bool) ($raw['notify_commitment_risk'] ?? $defaults->notifyCommitmentRisk),
             personalizeRecommendations: (bool) ($raw['personalize_recommendations'] ?? $defaults->personalizeRecommendations),
         );
     }
@@ -94,8 +88,6 @@ final readonly class UserPreferences
             'notify_conflicts' => $this->notifyConflicts,
             'notify_daily_summary' => $this->notifyDailySummary,
             'notify_recommendations' => $this->notifyRecommendations,
-            'commitment_risk_enabled' => $this->commitmentRiskEnabled,
-            'notify_commitment_risk' => $this->notifyCommitmentRisk,
             'personalize_recommendations' => $this->personalizeRecommendations,
         ];
     }

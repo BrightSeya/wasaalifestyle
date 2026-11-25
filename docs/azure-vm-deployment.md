@@ -67,50 +67,7 @@ curl -fsS http://127.0.0.1:5001/health
 sudo systemctl status wasaa-recommender --no-pager
 ```
 
-The optional commitment-risk model is separate from the slot recommender. Keep its artifact and model card under `/var/www/wasaa/ml/no-show/models/`, outside `web/public/`. The service template disables risk inference by default. Do not enable it until an approved-real artifact and evaluation-approved alert threshold exist.
-
-Transfer only approved model artifacts and their matching model card over an authenticated encrypted channel (for example, SCP using the protected SSH key). Never copy the raw user dataset to Git, the web root, or an unprotected workstation. Record checksums at the trusted source and compare after transfer (`Get-FileHash -Algorithm SHA256` in Windows PowerShell; `sha256sum` on Ubuntu). Stage the files outside the web root, then install with owner `azureuser:www-data`, directory mode `750`, and file mode `640`:
-
-```bash
-sha256sum /secure-transfer/commitment_risk.joblib /secure-transfer/model_card.json
-```
-
-Run the same command after transfer and compare the values before installing.
-
-```bash
-sudo install -d -o azureuser -g www-data -m 750 /var/www/wasaa/ml/no-show/models
-sudo install -o azureuser -g www-data -m 640 /secure-transfer/commitment_risk.joblib /var/www/wasaa/ml/no-show/models/commitment_risk.joblib
-sudo install -o azureuser -g www-data -m 640 /secure-transfer/model_card.json /var/www/wasaa/ml/no-show/models/model_card.json
-sudo systemctl restart wasaa-recommender
-sudo journalctl -u wasaa-recommender -n 50 --no-pager
-```
-
-The running process accepts only an `approved-real` model card whose feature list and bundle version match. A bad, missing, or synthetic-only model must remain unavailable; the existing slot-recommender routes should continue to start. Keep copies of the prior artifact pair outside the repository so a reviewed update can be rolled back. Never enable the risk model just to make the health check pass.
-
-## Laravel scheduler on Azure
-
-The commitment-risk alert command runs synchronously from Laravel's scheduler; it does not dispatch queue jobs, so no `queue:work` worker is required for this feature. Install the tracked systemd service and timer after deploying the Laravel code:
-
-```bash
-sudo cp /var/www/wasaa/deploy/azure/wasaa-scheduler.service /etc/systemd/system/
-sudo cp /var/www/wasaa/deploy/azure/wasaa-scheduler.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now wasaa-scheduler.timer
-```
-
-Confirm the Laravel task and timer are present, then inspect recent scheduler output:
-
-```bash
-cd /var/www/wasaa/web
-php artisan schedule:list
-sudo systemctl list-timers wasaa-scheduler.timer --all
-sudo systemctl start wasaa-scheduler.service
-sudo journalctl -u wasaa-scheduler.service -n 50 --no-pager
-```
-
-The systemd unit prepares and loads the labelled synthetic cold-start model. Laravel risk assessments are available when `COMMITMENT_RISK_ENABLED=true`, but each user must opt in at signup or in Settings; alert delivery also requires the user's in-app alert preference and an assessment above `COMMITMENT_RISK_ALERT_THRESHOLD` (default `0.75`). Estimates and alerts clearly identify the synthetic prototype and must not be presented as validated Wasaa accuracy.
-
-To disable the add-on globally, set `COMMITMENT_RISK_ENABLED=false` in Laravel's `.env` and `WASAA_RISK_MODEL_ENABLED=false` in a systemd override. To disable it for one account, turn off **No-show predictions and learning** in Settings. After changing server values, run `php artisan optimize:clear`, `php artisan config:cache`, and `sudo systemctl restart wasaa-recommender`. These controls do not disable ordinary schedule creation, editing, conflict checking, or the slot recommender.
+The app has no no-show model, activity-risk rules, or activity-risk reminders. The slot recommender's Random Forest is the separate ML service.
 
 ## Nginx and Laravel
 
@@ -144,8 +101,6 @@ DB_HOST=127.0.0.1
 DB_DATABASE=wasaa_lifestyle
 DB_USERNAME=wasaa_app
 SLOT_RECOMMENDER_URL=http://127.0.0.1:5001
-COMMITMENT_RISK_ENABLED=false
-COMMITMENT_RISK_ALERT_THRESHOLD=0.75
 ```
 
 Also configure a real SMTP provider and sender (`MAIL_*`) before public registration. `MAIL_MAILER=log` writes verification and recovery messages to logs instead of sending them. Set Google OAuth credentials and register the exact HTTPS callback URI with Google before enabling Calendar connections.
@@ -205,9 +160,9 @@ curl -fsS http://127.0.0.1:5001/health
 
 The listener must be `127.0.0.1:5001`, not `0.0.0.0:5001`. From the Azure portal, open the VM's **Networking** page, inspect its effective inbound security rules and attached NSG, and verify there is no inbound TCP rule for port `5001` (or `5000`). Keep only the intended SSH rule restricted to the administrator's IP and HTTP/HTTPS rules as required. From a separate machine, `Test-NetConnection <public-ip> -Port 5001` should report `TcpTestSucceeded: False`.
 
-The `/health` route reports whether the existing slot model is loaded; it does not prove the optional risk model is loaded. To check a deliberately enabled approved risk model, POST only a synthetic, non-identifying feature object to `http://127.0.0.1:5001/noshow/predict` from the VM and verify a valid response. With the risk model disabled or stopped, expect a generic `503`; then run Laravel's alert command and verify it creates no assessment or alert. Do not include real user fields in health probes or shell history.
+The `/health` route reports whether the slot recommender is loaded. The app has no no-show or activity-risk reminder feature.
 
-Only exercise the stopped-service failure path with an isolated test database and synthetic test account. Do not turn on the feature in a live deployment just to run this check. If the approved model is not available, keep the production flags off; the Python and Laravel automated suites already exercise the unavailable-model case with synthetic test doubles.
+The Laravel test suite covers rule-based assessments using test data. The slot recommender remains an independent Flask service.
 
 ## Sprint 8 deployment verification record
 
@@ -219,9 +174,7 @@ The repository changes and CI checks do not prove the live VM or NSG configurati
 | Recommender service status and local `/health` | Pending deployment |
 | Bound address (`ss -lntp`) | Pending; expected `127.0.0.1:5001` |
 | NSG/effective inbound rule for TCP 5001 from Internet | Pending portal verification; expected absent |
-| Scheduler timer and `php artisan schedule:list` | Pending deployment |
-| Risk endpoint with model disabled or service stopped | Pending deployment; expected unavailable, with no alert created |
-| Ordinary schedule create/edit while risk feature is disabled | Pending browser verification |
+| Ordinary schedule create/edit and conflict checks | Pending browser verification |
 
 Keep real IP addresses, user details, tokens, and raw model data out of this record.
 
@@ -229,4 +182,4 @@ Keep real IP addresses, user details, tokens, and raw model data out of this rec
 
 The Azure VM has served the app over its public IP, and the recommender health endpoint has returned `model_loaded: true`. Domain DNS and HTTPS, production SMTP delivery, and Google OAuth with the final HTTPS callback remain separate setup tasks. Until HTTPS and mail are configured and verified, treat the IP-hosted site as a visual demo only.
 
-The tracked configuration now prepares and enables the synthetic commitment-risk cold start, with a per-user consent gate in Laravel. This repository workspace does not verify the live VM's environment, NSG, or scheduler timer; verify those separately before relying on deployment behavior.
+The running app has no activity-risk reminder or no-show model. This repository workspace does not verify the live VM's environment or NSG; verify those separately before relying on deployment behavior.

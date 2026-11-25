@@ -53,8 +53,4 @@ class Schedule extends Model
         return $this->hasMany(ScheduleOccurrenceOutcome::class);
     }
 
-    public function riskAssessments(): HasMany
-    {
-        return $this->hasMany(ScheduleRiskAssessment::class);
-    }
 }

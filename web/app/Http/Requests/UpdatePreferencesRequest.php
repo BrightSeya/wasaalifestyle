@@ -27,8 +27,6 @@ class UpdatePreferencesRequest extends FormRequest
             'notify_conflicts' => ['sometimes', 'boolean'],
             'notify_daily_summary' => ['sometimes', 'boolean'],
             'notify_recommendations' => ['sometimes', 'boolean'],
-            'commitment_risk_enabled' => ['sometimes', 'boolean'],
-            'notify_commitment_risk' => ['sometimes', 'boolean'],
             'personalize_recommendations' => ['sometimes', 'boolean'],
         ];
 
@@ -62,8 +60,6 @@ class UpdatePreferencesRequest extends FormRequest
             notifyConflicts: $this->boolean('notify_conflicts'),
             notifyDailySummary: $this->boolean('notify_daily_summary'),
             notifyRecommendations: $this->boolean('notify_recommendations'),
-            commitmentRiskEnabled: $this->boolean('commitment_risk_enabled'),
-            notifyCommitmentRisk: $this->boolean('notify_commitment_risk'),
             personalizeRecommendations: $this->boolean('personalize_recommendations'),
         );
     }

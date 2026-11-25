@@ -171,7 +171,6 @@ class ProfileSettingsTest extends TestCase
         $this->assertSame(18, $preferences['peak_end_hour']);
         $this->assertSame(20, $preferences['preferred_break_minutes']);
         $this->assertTrue($preferences['notify_conflicts']);
-        $this->assertFalse($preferences['notify_commitment_risk']);
         $this->assertTrue($preferences['availability']['mon']['morning']);
     }
 
@@ -184,38 +183,8 @@ class ProfileSettingsTest extends TestCase
         $preferences = $user->fresh()->preferences;
         $this->assertFalse($preferences['notify_daily_summary']);
         $this->assertFalse($preferences['notify_recommendations']);
-        $this->assertFalse($preferences['notify_commitment_risk']);
         $this->assertFalse($preferences['availability']['mon']['afternoon']);
         $this->assertFalse($preferences['availability']['sun']['evening']);
-    }
-
-    public function test_user_can_opt_in_to_commitment_risk_alerts(): void
-    {
-        $user = User::factory()->create();
-
-        $this->actingAs($user)->put('/settings/preferences', $this->validPreferences([
-            'notify_commitment_risk' => '1',
-        ]))->assertRedirect(route('settings.edit'));
-
-        $this->assertTrue($user->fresh()->preferences['notify_commitment_risk']);
-    }
-
-    public function test_user_can_enable_and_disable_no_show_learning_from_settings(): void
-    {
-        $user = User::factory()->create();
-
-        $this->actingAs($user)->put('/settings/preferences', $this->validPreferences([
-            'commitment_risk_enabled' => '1',
-        ]))->assertRedirect(route('settings.edit'));
-
-        $user->refresh();
-        $this->assertTrue($user->preferences['commitment_risk_enabled']);
-        $this->assertNotNull($user->commitment_risk_consent_at);
-
-        $this->actingAs($user)->put('/settings/preferences', $this->validPreferences())
-            ->assertRedirect(route('settings.edit'));
-
-        $this->assertFalse($user->fresh()->preferences['commitment_risk_enabled']);
     }
 
     public function test_peak_end_hour_must_be_after_peak_start_hour(): void

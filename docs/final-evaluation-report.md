@@ -1,7 +1,7 @@
 # Wasaa Lifestyle final evaluation report
 
 **Issue:** #95 - `docs: write the final evaluation report`
-**Status:** Draft. The user confirms the supplied UAT/SUS figures are from collected sessions. Test metadata, a UAT count discrepancy, and the no-show model's version/provenance still need reconciliation.
+**Status:** Draft. The user confirms the supplied UAT/SUS figures are from collected sessions. Test metadata and a UAT count discrepancy still need reconciliation. The no-show ML model was removed from the running app; no no-show model-performance claim should be included.
 
 ## Executive summary
 
@@ -83,7 +83,7 @@ The detailed operational steps are in [`azure-vm-deployment.md`](azure-vm-deploy
 
 The recorded software tests and local response-time measurements support the technical feasibility of the application. The slot recommender improves on its recorded baselines, while its validation F1 target remains unmet. The supplied SUS scores indicate a mean of 78.0, above the target, while the supplied UAT result reports 95%; the UAT case discrepancy and missing test metadata limit confidence in those conclusions. The no-show metrics do not match the current repository's implemented scope. Production-safe public access also remains outstanding because HTTPS, production email, and the final Google OAuth callback are not verified.
 
-Before closing #95, reconcile the UAT count, add the missing test metadata, confirm the SUS response records, and identify the no-show model build or remove those claims from the final evaluation. Then update the conclusions to match the evidence and link any follow-up issues.
+Before closing #95, reconcile the UAT count, add the missing test metadata and confirm the SUS response records. The no-show/activity-risk feature was removed; do not report its metrics as current app behavior.
 
 ## References
 

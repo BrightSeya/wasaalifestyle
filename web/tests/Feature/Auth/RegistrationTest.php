@@ -45,21 +45,8 @@ class RegistrationTest extends TestCase
         $this->assertTrue(Hash::check('secret123', $user->password));
         $this->assertNotSame('secret123', $user->password);
         $this->assertSame($user->session_version, session('auth_session_version'));
-        $this->assertFalse($user->preferences['commitment_risk_enabled']);
-        $this->assertNull($user->commitment_risk_consent_at);
         Notification::assertSentTo($user, VerifyEmail::class);
         $this->get('/dashboard')->assertRedirect(route('verification.notice'));
-    }
-
-    public function test_signup_consent_enables_no_show_predictions_and_records_consent_time(): void
-    {
-        $this->post('/register', $this->valid + ['commitment_risk_consent' => '1'])
-            ->assertRedirect(route('verification.notice'));
-
-        $user = User::where('email', 'bright@example.com')->firstOrFail();
-        $this->assertTrue($user->preferences['commitment_risk_enabled']);
-        $this->assertTrue($user->preferences['notify_commitment_risk']);
-        $this->assertNotNull($user->commitment_risk_consent_at);
     }
 
     public function test_registration_cannot_set_admin_role(): void

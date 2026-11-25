@@ -11,8 +11,6 @@ flowchart LR
     L -->|POST /predict, timeout 5 s| F[Flask recommendation service]
     F --> M[Random Forest model artifact]
     F --> C[Model card and baseline metadata]
-    L -->|POST /noshow/predict, private| F
-    F --> R[Optional commitment-risk artifact]
     L -->|OAuth read-only import| G[Google Calendar API]
     L -->|Configured mail transport| E[Email provider]
 ```
@@ -26,11 +24,11 @@ Laravel owns authentication, authorization, validation, schedule persistence, co
 - `docs/` — user, integration, deployment, performance, and project documentation.
 - `.github/workflows/ci.yml` — repository sanity, Laravel, and ML test jobs.
 
-The commitment-risk service is available by default, but it runs only for users who explicitly enable it at signup or in Settings. Laravel owns occurrence eligibility, same-user prior-outcome feature derivation, assessment persistence, and alert creation. Flask exposes a private `POST /noshow/predict` route with an allow-listed feature payload, including zero/null history for cold-start users. The cold-start artifact is fitted from pinned synthetic bookings in [`ml/no-show/data/upstream/bookings.csv`](../ml/no-show/data/upstream/bookings.csv). Estimates and alerts are labelled prototype-only. Completed/missed activity logs and schedule outcomes progressively personalize each user's estimates; skipped/cancelled outcomes are excluded and personal history is not pooled across users. A later Wasaa trainer can replace the cold-start artifact only after approved outcomes pass chronological evaluation. Keep Flask private; the Azure unit binds to loopback and generates the prototype artifact at startup. See the [commitment-risk model and operations record](../ml/no-show/README.md).
+The application does not include a no-show or activity-risk assessment/reminder feature. Users can record schedule occurrence outcomes, which are used only when they opt in to personalizing their time-slot recommendations. The slot-suitability model and `/predict` route remain the ML component.
 
 ## Request and data flow
 
-When a signed-in user requests recommendations, Laravel gathers the task category, weekday (Monday is `0`), duration in minutes, schedule density, and hours since the same category was last scheduled. Laravel calls the configured Flask URL at `/predict` with a five-second timeout. Flask evaluates candidate hours, using the trained classifier and completion lookup, and returns up to three suggestions with confidence and suitability data. Laravel presents the results and remains responsible for checking the user's schedule, enforcing ownership, resolving conflicts, and persisting any confirmed schedule.
+For a repeatable activity, Laravel evaluates each of the next seven dates using that weekday's availability, selects up to the activity's weekly frequency in conflict-free, spread-out days, and offers up to three time options per selected day. A user picks at most one option for each day. For a one-off task, the task creation form sends its selected date and duration and Laravel returns suitable times for that date. Each request includes category, weekday (Monday is `0`), duration in minutes, schedule density, and hours since the same category was last completed. Laravel calls the configured Flask URL at `/predict` with a five-second timeout. Flask scores candidate hours using the trained classifier and completion lookup; Laravel applies duration-aware availability and schedule conflict checks, enforces ownership, and persists options for the user to choose from.
 
 If the user opted in to recommendation personalization, Laravel sends compact per-user outcome counts grouped by weekday and hour. Completed and missed activity-log and schedule-occurrence outcomes are included; skipped and cancelled entries are excluded. The Python ranker combines these counts with the ATUS score using recency decay and hierarchical shrinkage, so personalization changes as the user records outcomes while sparse histories remain anchored to ATUS. These counts are scoped to that user's request and are not used to update a shared model. Users can change this choice in Settings; without consent no personal outcomes are sent and the ATUS-based recommendations remain available. The protected `/retrain` endpoint still trains from ATUS data only; it is not a periodic user-data training job.
 

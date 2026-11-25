@@ -5,7 +5,7 @@
 
 This chapter describes the implementation and evaluation of WasaaLifestyle OS, a web-based smart scheduling system. The work combines a Laravel application for user and schedule management with a Python Flask service that ranks candidate time slots using a Random Forest classifier. Deterministic application rules detect schedule conflicts and retain control over whether a suggested time may be accepted. The application also records lifestyle activity outcomes, provides notifications and administrative functions, and supports optional read-only Google Calendar import.
 
-The chapter follows the implementation and evaluation sequence used in the project. It first describes the development and demonstration environments, then the system modules and the data and model pipeline. It reports software verification, model validation, performance measurements, and the user-provided UAT and SUS results. Version-control and implementation evidence are described in Section 5.5. A later Sprint 8 extension adds an optional commitment-risk workflow. Its software boundary and safeguards are implemented, but the repository contains no approved real-user training dataset or evaluated model artifact; consequently, the extension remains disabled and no real-user predictive performance is claimed.
+The chapter follows the implementation and evaluation sequence used in the project. It first describes the development and demonstration environments, then the system modules and the data and model pipeline. It reports software verification, model validation, performance measurements, and the user-provided UAT and SUS results. Version-control and implementation evidence are described in Section 5.5. The application does not include the proposed no-show/activity-risk feature; the implemented ML feature is the separate slot recommender.
 
 The system was developed in response to the objectives in Chapter One: analysing scheduling challenges and existing tools, developing an integrated web scheduling system with machine-learning time recommendations and rule-based conflict detection, and evaluating its performance, predictive accuracy, usability and algorithmic efficiency. The implementation was refined over Agile sprints, while the recommendation model followed the CRISP-DM stages described in Chapter Three.
 
@@ -42,7 +42,6 @@ The web application uses Laravel 12 with PHP. Its browser assets are compiled us
 | Python model libraries reported on VM | NumPy 2.4.6, pandas 3.0.6, scikit-learn 1.9.1, joblib 1.6.0 | Feature processing, model inference and artifact loading |
 | Recommender bind | `127.0.0.1:5001` in the tracked Azure service template | Keeps the prediction service private to the host |
 | Mail transport | Inbox delivery was not confirmed for the demonstration | Email verification and password-related messages depend on server mail configuration |
-| Risk-model controls | Laravel flag defaults to `false`; Python model flag defaults to `false`; alert threshold is unset | Prevents unapproved or unevaluated commitment-risk predictions and alerts |
 
 Credentials and host-specific values are supplied through environment configuration and are excluded from Git. The tracked `.env.example` provides variable names without secret values. The Azure runbook records database creation, file permissions, asset build, systemd service setup, Nginx configuration, and rollback steps. A successful local check of application code does not establish the state of every private value on the deployed VM.
 
@@ -50,9 +49,9 @@ Credentials and host-specific values are supplied through environment configurat
 
 The deployment configuration describes a single Ubuntu virtual machine hosting the Laravel web application, MySQL database and Python recommender service. Nginx serves the `web/public` directory and forwards PHP requests to PHP-FPM. The Python service runs separately under Gunicorn and is bound to loopback. The recommender health endpoint returned `{"model_loaded":true,"status":"ok"}` when checked on the VM. The application page and compiled assets were later served successfully through the configured Nginx virtual host.
 
-The slot model and generated ATUS files are not committed as large or private artifacts. Reproducing the training process requires obtaining the public ATUS 2023 activity and respondent source files and following the preparation and training scripts in `ml/slot-recommender/`. Reproducing the Laravel environment requires PHP and Composer dependencies, Node dependencies for the asset build, a configured database and environment values. The no-show preparation and training pipeline stores derived data, reports and model artifacts in ignored private storage and must not be supplied with real user records without the required approval.
+The slot model and generated ATUS files are not committed as large or private artifacts. Reproducing the training process requires obtaining the public ATUS 2023 activity and respondent source files and following the preparation and training scripts in `ml/slot-recommender/`. Reproducing the Laravel environment requires PHP and Composer dependencies, Node dependencies for the asset build, a configured database and environment values. The no-show material under `ml/no-show/` is archived research and is not connected to the app.
 
-The live Azure checks were reported by the user during deployment setup. The repository does not contain independent verification of the VM's current state, effective network security rules, HTTPS, production SMTP delivery, or final Google OAuth callback. The commitment-risk model was not installed or enabled on the VM. The system must therefore be described as a demonstration deployment with outstanding production-hardening checks, not as a verified public production service.
+The live Azure checks were reported by the user during deployment setup. The repository does not contain independent verification of the VM's current state, effective network security rules, HTTPS, production SMTP delivery, or final Google OAuth callback. The system must therefore be described as a demonstration deployment with outstanding production-hardening checks, not as a verified public production service.
 
 <mark>[PLACEHOLDER: Insert a redacted screenshot of the Azure VM overview and the Nginx-served Wasaa page; include the capture date and hide credentials and any personal data.]</mark>
 
@@ -75,13 +74,13 @@ The Laravel application owns identity, authorization, validation, persistence, n
 | Dashboard and activity summaries | Present the upcoming schedule, notification summaries and activity completion information | FRQ12 |
 | Administration | Provide user-management and audit functions to authorized administrators | Administrator requirements in Chapter Four |
 | Google Calendar | Support an optional, user-authorized read-only event import | External-service requirements in Chapter Four |
-| Commitment-risk add-on | Capture occurrence outcomes, derive leakage-limited features, expose a private prediction contract, and implement default-off assessments, opt-in alerts and conflict-checked alternatives | Sprint 8 extension; not an original Chapter Four requirement |
+| Commitment-risk add-on | Explored as an extension, then removed from the running app because the appointment model and rule-based substitute were not suitable for personal schedules | Not an implemented deliverable |
 
 The exact requirement numbering and wording for administrator, security and external-service requirements should match the final Chapter Four version used in the submitted thesis.
 
 #### 5.3.2 Database and Data Implementation
 
-Laravel migrations define the application schema. The principal tables store users and preferences, schedules, routine activities and their logs, recommendation records, notifications, Google Calendar connections, administrator audit records, schedule-occurrence outcomes and commitment-risk assessments. Foreign keys and uniqueness constraints support ownership and lifecycle behavior. For recurring schedule entries, a stored schedule is expanded into dated occurrences by application logic rather than copied into a separate row for every future date.
+Laravel migrations define the application schema. The principal tables store users and preferences, schedules, routine activities and their logs, recommendation records, notifications, Google Calendar connections, administrator audit records and schedule-occurrence outcomes. Foreign keys and uniqueness constraints support ownership and lifecycle behavior. For recurring schedule entries, a stored schedule is expanded into dated occurrences by application logic rather than copied into a separate row for every future date.
 
 | Table | Main purpose |
 |---|---|
@@ -90,13 +89,12 @@ Laravel migrations define the application schema. The principal tables store use
 | `activity_logs` | User-reported daily completion, missed or skipped activity outcomes |
 | `schedules` | One-off and recurring tasks or events |
 | `recommendations` | Suggested time slots and their state |
-| `notifications` | Conflict, system and optional commitment-risk messages |
+| `notifications` | Conflict and system messages |
 | `google_calendar_connections` | Encrypted Google OAuth connection data |
 | `admin_audit_logs` | Auditable administrator actions |
 | `schedule_occurrence_outcomes` | Explicit completed, missed or skipped result for a particular schedule occurrence |
-| `schedule_risk_assessments` | Minimal optional risk assessment metadata associated with an occurrence |
 
-The no-show occurrence outcome is distinct from the daily activity log. A recurring schedule represents multiple occurrences, so each outcome is tied to a specific schedule and occurrence start. Newly captured outcomes preserve an occurrence-end snapshot; older records without a reliable end snapshot are excluded from model preparation. Schedule and account deletion cascade to related outcomes and assessments.
+The schedule occurrence outcome is distinct from the daily activity log. A recurring schedule represents multiple occurrences, so each outcome is tied to a specific schedule and occurrence start. With user consent, outcomes can provide same-user history to personalize time-slot rankings. Schedule and account deletion cascade to related outcomes.
 
 #### 5.3.3 Authentication, Authorisation and Account Management
 
@@ -118,9 +116,9 @@ When a conflict is found, the application reports it before saving. A user can c
 
 #### 5.3.6 Notifications and User Preferences
 
-Notifications include schedule conflict alerts and other system messages. Users can view unread messages, mark notifications as read and dismiss supported alerts. Settings include availability windows, productivity hours, break preferences and notification preferences. A commitment-risk alert preference is also available, but it cannot produce a risk alert while the server-side feature flag or evaluated threshold is unavailable.
+Notifications include schedule conflict alerts and other system messages. Users can view unread messages and mark notifications as read. Settings include availability windows, productivity hours, break preferences and notification preferences.
 
-Commitment-risk alerts, when enabled after a suitable evaluation, are in-app only and are generated approximately one hour before an eligible occurrence. They require the user's explicit opt-in, an enabled service, a numeric configured threshold and a successful assessment meeting that threshold. Alerts are deduplicated and dismissible. They do not change or cancel a schedule, send email or push notifications, or mark an occurrence as missed. Alternative times are obtained from the existing recommendation service and must be explicitly accepted after another conflict check.
+High-risk activity reminders are in-app only and are generated approximately one hour before an eligible occurrence. They require the user's assessment opt-in and separate alert preference. Alerts are deduplicated and dismissible. They do not change or cancel a schedule, send email or push notifications, or mark an occurrence as missed. Alternative times are obtained from the existing recommendation service and must be explicitly accepted after another conflict check.
 
 #### 5.3.7 Google Calendar Integration
 
@@ -170,15 +168,13 @@ The live model artifact is generated locally and excluded from Git. Therefore, t
 
 #### 5.3.14 Commitment-Risk Add-on
 
-The Sprint 8 commitment-risk extension uses the Logistic Regression and Platt-calibration model implementation from the public `BrightSeya/scheduling` repository and its pinned 21,333-row synthetic bookings dataset. Wasaa fits the source model from this dataset for cold start and bypasses its `bookingId` lookup. Its source label includes both no-shows and cancellations; Wasaa's later occurrence labels distinguish completed (0) and explicitly missed (1), excluding skipped, cancelled and unreported outcomes.
+The application does not implement the proposal's no-show/activity-risk feature. An appointment model trained on booking data and a later rules-based substitute were removed because they added complexity without established relevance to personal activity schedules. Flask handles slot recommendations only.
 
-For inference, Laravel derives only pre-occurrence information and the same user's prior explicit outcomes; it sends no IDs or free text. The adapter maps lead time, weekday/hour and prior outcome counts/rates. Wasaa does not collect the source's booking price, provider rating or verification fields, so their model inputs use neutral centers learned from the upstream fit partition; lifestyle categories not found in the service dataset are treated as unknown. Priority, duration and same-category history are not used by this source model. This mapping supports a cold-start demonstration, but it does not establish calibration for Wasaa users. The model card records the mapping, pinned source commit, dataset checksum and synthetic chronological holdout metrics.
+Users may opt in to using their own completed and missed activity or schedule outcomes to personalize slot rankings. This does not create risk levels or reminders, and it does not retrain the population Random Forest.
 
-Laravel checks schedule ownership and future-occurrence eligibility before constructing a request. Users with no recorded outcomes may receive a cold-start estimate; their history counts are zero and rates null. New outcomes change mapped prior-history inputs on later requests, but model weights do not learn online. The Python endpoint `POST /noshow/predict` rejects missing or unexpected fields and does not query Laravel's database. The upstream synthetic artifact was generated locally and is ignored by Git; it is not included in a deployment. Both Python model flags and Laravel alert controls remain disabled by default. No approved real Wasaa dataset, prepared real-data report or fitted Wasaa model is available. Automated tests verify source-data parity, feature mapping and service contracts, not predictive accuracy for Wasaa users.
+No ML accuracy or probability claim is made for this feature. Its software tests verify rule behavior and alert safeguards, not whether the rules predict missed activities.
 
-The cold-start model reproduces the upstream trainer on the pinned synthetic dataset, and a compatibility test confirms the probabilities match the upstream implementation on its holdout to floating-point precision. Its synthetic holdout ROC-AUC is 0.7507 and Brier score is 0.1358; these values describe the generated source data and do not demonstrate Wasaa-user performance. If deliberately enabled for a local prototype, responses and alerts are labelled synthetic prototype estimates. The Azure demonstration has not been updated with this artifact. A later Wasaa model can replace the cold-start model only after approved outcomes, chronological evaluation, baseline comparison and review. Alerts remain opt-in, in-app, deduplicated and advisory; users control schedule changes and alternatives are conflict-rechecked.
-
-<mark>[PLACEHOLDER: Insert an architecture or sequence diagram of the implemented Laravel–Flask boundary. Mark commitment-risk inference and alerts as disabled until an approved real model and threshold exist.]</mark>
+*Figure 5.2: Laravel application and the separate Flask slot-recommender service.*
 
 *Figure 5.2: Application and machine-learning service boundaries.*
 
@@ -188,22 +184,20 @@ The cold-start model reproduces the upstream trainer on the pinned synthetic dat
 
 Evaluation combines automated Laravel tests, Python model and API tests, local HTTP benchmarking, reported UAT/SUS results and review of the available model metadata. Unit tests cover isolated business rules and feature functions. Laravel feature tests exercise application routes, persistence and authorization using a test database and service fakes. Python tests cover data loading, preparation, model utilities and Flask endpoint contracts. Local performance measurements cover complete HTML responses for selected Laravel routes. These forms of evidence answer different questions and are not interchangeable: successful software tests do not establish model quality, user acceptance or secure production operation.
 
-The measured targets recorded for the project are a normal-page response time below two seconds and a mean SUS score greater than 68. The proposal also states a Random Forest F1 target greater than 0.75. The recommender validation result is compared with the available baseline models. No approved acceptance threshold for the no-show model can be reported because the real-data evaluation has not been completed.
+The measured targets recorded for the project are a normal-page response time below two seconds and a mean SUS score greater than 68. The proposal also states a Random Forest F1 target greater than 0.75. The recommender validation result is compared with the available baseline models. The no-show/activity-risk feature was removed, so it has no reported model metric.
 
 #### 5.4.2 Automated Test Results
 
-The latest recorded Sprint 8 verification run reports the following local results:
+The last verification run before removing the activity-risk feature reported the following local results; these are historical and do not verify the current working tree:
 
 | Test suite | Recorded result | Scope and qualification |
 |---|---|---|
-| Laravel application | 230 passed, 4 skipped; 979 assertions | Local PHPUnit suite. Four live recommender integration tests were skipped because the Flask service was not running. |
-| Python slot-recommender and API | 107 passed | Pytest suite includes existing recommender behavior and commitment-risk endpoint contract tests using a synthetic test model. |
-| No-show preparation/training contracts | 12 passed | Local rerun on 12 November 2026 after adapting the upstream Logistic Regression and Platt method. Synthetic generated rows verify preparation and trainer behavior; this is not real-user model evaluation. |
-| Browser/manual risk-alert checklist | Pending in the repository record | Manual UI results are not inferred from automated tests. |
+| Laravel application | 230 passed, 4 skipped; 979 assertions (pre-removal run) | Historical PHPUnit suite result. Rerun CI on the final code before deployment. |
+| Python slot-recommender and API | 101 passed before the latest feature-removal edits | Historical local result; rerun the release checks on the final code before deployment. |
 
-The Laravel tests cover authentication, ownership and access control, schedule occurrences, conflicts, recommendation behavior, notifications, settings and account behavior. Sprint 8 adds cases for outcome eligibility, history timing, disabled or unavailable models, alert timing and deduplication, dismissal, ownership and conflict-checked alternatives. The Python risk API tests cover valid schemas, missing and extra fields, disabled/unavailable model behavior and safe failures.
+The Laravel tests cover authentication, ownership and access control, schedule occurrences, conflicts, recommendation behavior, notifications, settings and account behavior. The current test suite no longer covers no-show risk assessments or reminders because those features were removed.
 
-The previously recorded Laravel and Python recommender run was executed on 12 November 2026 against the Sprint 8 test work associated with PR #128. The test report identifies the issue #116 branch head as `a01e9677f9c717a7441d0dffb7a3ab5c6ddd7bac`, merged as `75a2ed1fad19f989c1de8bedb0e3deb24f33baf9`. After adapting the trainer to the upstream model method, the no-show suite was rerun locally and recorded 12 passing tests, and the recommender suite was rerun with 107 passing tests. This working-tree verification is not a hosted CI run and does not correspond to an Azure deployment; a successful GitHub Actions result should only be stated when captured from GitHub.
+The recorded pre-removal working-tree verification completed on 25 November 2026: Laravel reported 240 passed and 1 skipped (1007 assertions); the slot recommender reported 101 passed. These results predate removal of the activity-risk feature and are not final release verification. Rerun CI against the final code before deployment; no hosted CI or Azure result is claimed here.
 
 <mark>[PLACEHOLDER: Insert a dated screenshot of the final relevant automated test output or GitHub Actions run. If using local output, identify it as local rather than hosted CI.]</mark>
 
@@ -227,9 +221,7 @@ The Random Forest improved the validation Hit Rate@3 by approximately 31 per cen
 
 #### 5.4.4 Commitment-Risk Software Verification and Evaluation Status
 
-The pipeline and API tests verify data-label rules, pre-event history constraints, leakage rejection, chronological split requirements, service input validation and safe disabled-model behavior. The Laravel tests verify ownership, occurrence eligibility, no-history behavior, unavailable-service handling, opt-in, threshold gating, one-hour timing, alert deduplication, dismissal and alternatives with confirmation-time conflict checks. All four gating conditions—Laravel feature flag, Python model flag, user preference and an evaluation-supported numeric threshold—must be satisfied before model-based alerts can be created.
-
-The tests do not show that the model can identify likely missed commitments in real Wasaa usage. No approved real dataset, per-user sample counts, real-data baseline, held-out model metrics, model card, threshold evaluation or live model artifact was available. The risk flags remain off by default in tracked configuration and the alert threshold is blank. The no-show add-on is therefore software-tested at the contract and safeguards level but has no reported real-data predictive evaluation. Its live Azure deployment and browser alert flow remain unverified.
+The no-show/activity-risk feature is not part of the application and has no runtime verification or predictive performance claims. Slot-recommender evaluation is reported separately in Section 5.4.3.
 
 #### 5.4.5 Performance Testing
 
@@ -267,7 +259,7 @@ The user-provided evaluation record states that 20 functional cases were conduct
 | Test date, environment/URL and tested commit | <mark>[PLACEHOLDER: Enter the actual session date(s), tested environment or URL, and exact application commit.]</mark> |
 | Consent or institutional approval status | <mark>[PLACEHOLDER: State the actual approval/consent basis used for the participant sessions.]</mark> |
 
-The reported cases included registration, login, invalid credentials, activity creation/edit/deletion, daily and weekly schedules, conflict detection, smart recommendations, no-show display, history, activity completion, Google Calendar synchronization, validation, dashboard statistics and logout. The no-show case is reported in the supplied UAT summary but cannot be matched to a deployed model in the repository; it is not evidence of a real-user prediction. The UAT summary is evidence as reported by the project author; the missing case-level reconciliation limits independent verification.
+The reported cases included registration, login, invalid credentials, activity creation/edit/deletion, daily and weekly schedules, conflict detection, smart recommendations, a no-show display, history, activity completion, Google Calendar synchronization, validation, dashboard statistics and logout. The no-show display is no longer part of the application; UAT results for it must not be presented as a current feature or evidence of a real-user prediction. The UAT summary is evidence as reported by the project author; the missing case-level reconciliation limits independent verification.
 
 The user-provided SUS scores cover ten anonymized participants: 80.0, 75.0, 82.5, 72.5, 85.0, 77.5, 70.0, 80.0, 75.0 and 82.5. Their total is 780, giving a mean of 78.0 and a range of 70.0–85.0. The reported mean exceeds the project threshold of 68. The raw ten-item responses and session metadata were not supplied with the result, so the individual scoring cannot be independently recalculated from the record.
 
@@ -293,7 +285,7 @@ WasaaLifestyle OS is maintained in the public GitHub repository `https://github.
 
 #### 5.5.1 Repository Setup and Access
 
-The repository is a monorepository. The `web/` directory contains Laravel source, migrations, frontend resources and tests; `ml/slot-recommender/` contains the Flask recommender, ATUS processing code and tests; `ml/no-show/` contains the commitment-risk data and model pipeline; `deploy/azure/` contains service and web-server templates; and `docs/` contains architecture, operational, testing and user documentation. The repository is publicly readable. No project-level licence file was present in the reviewed checkout.
+The repository is a monorepository. The `web/` directory contains Laravel source, migrations, frontend resources and tests; `ml/slot-recommender/` contains the Flask recommender, ATUS processing code and tests; `ml/no-show/` contains archived research only; `deploy/azure/` contains service and web-server templates; and `docs/` contains architecture, operational, testing and user documentation. The repository is publicly readable. No project-level licence file was present in the reviewed checkout.
 
 <mark>[PLACEHOLDER: Insert a screenshot of the repository overview with the repository name and main directories visible.]</mark>
 
@@ -339,7 +331,7 @@ The local project log is ignored by Git and therefore does not form part of the 
 
 #### 5.5.7 Hosting and Deployment
 
-The system was deployed for demonstration to the Azure VM described in Section 5.2. A user-reported recommender health check confirmed that the slot model was loaded, and the application was served by Nginx from the Laravel public directory. This is evidence of a demonstration deployment at the time of the check. It does not establish current availability, HTTPS, production email delivery, Google Calendar OAuth on a final domain, verified NSG rules or deployment of the commitment-risk model. The risk model remained disabled in tracked deployment configuration.
+The system was deployed for demonstration to the Azure VM described in Section 5.2. A user-reported recommender health check confirmed that the slot model was loaded, and the application was served by Nginx from the Laravel public directory. This is evidence of a demonstration deployment at the time of the check. It does not establish current availability, HTTPS, production email delivery, Google Calendar OAuth on a final domain or verified NSG rules.
 
 <mark>[PLACEHOLDER: Insert a redacted screenshot showing the final demo URL and HTTPS status, and a matching Azure/recommender health check with capture date.]</mark>
 
@@ -362,7 +354,7 @@ OpenAI Codex assisted with repository inspection, collation of implementation an
 | Develop an integrated web scheduling system using Random Forest slot suitability and rule-based conflict detection | Laravel workflows, the private Flask slot recommender, schedule occurrence logic, conflict checker and user-controlled confirmation were implemented and covered by automated tests. | Implemented. The recommender improves on the recorded baselines; its held-out test F1 of 0.7510 narrowly meets the stated target greater than 0.75. |
 | Test performance, predictive accuracy, usability and algorithmic efficiency in scheduling | Automated application and Python tests, held-out model metrics, local sequential HTTP benchmark and user-reported UAT/SUS summary are available. | Partially supported by the available evidence. The local page benchmark met its target; mean SUS was reported as 78.0; the UAT aggregate needs reconciliation; held-out test F1 narrowly met its target. The work did not measure causal reduction in conflicts or improved real-world productivity. |
 
-The Sprint 8 commitment-risk work is an additional extension beyond the original Chapter Four functional requirements. Its occurrence-outcome schema, Wasaa adaptation of the upstream logistic-regression and Platt-calibration model, preparation pipeline, private API boundary, Laravel integration, alert safeguards and tests are present in the repository. The upstream repository's synthetic booking rows are not used as Wasaa training data. The fitted Wasaa artifact and user-facing risk prediction remain disabled because an approved real dataset and acceptable held-out evaluation have not been established. It is therefore not concluded that the system currently predicts the actual behavior of Wasaa users.
+The proposed no-show/activity-risk feature was removed from the running application. The model trained on unrelated appointment data was not considered suitable, and a rule-based replacement was judged unnecessary for the scheduling app. This feature is not claimed as an implemented deliverable.
 
 #### 5.7.2 Discussion of Results
 
@@ -372,19 +364,19 @@ The Random Forest outperformed the two validation baselines on F1, Hit Rate@3 an
 
 The performance test met the two-second target for the sampled local HTML requests. Because it used one client on the development host, it does not characterize concurrent load or Azure response times. The user-provided SUS mean of 78.0 exceeded the stated benchmark for the ten scored participants. The UAT summary reported a 95 per cent pass rate, but the case table marks all twenty tests as passing. Until that discrepancy and session details are reconciled, the aggregate should be treated cautiously and not generalized beyond the reported sessions.
 
-The commitment-risk extension reuses the upstream model implementation with a Wasaa-specific feature adapter, but no approved real dataset or trained Wasaa model artifact is included. Test fixtures validate code behavior and failure handling only. The system is not ready to make real-user risk claims from this evidence.
+The no-show/activity-risk feature is not implemented in the running application.
 
 #### 5.7.3 Limitations
 
 The slot model uses U.S. ATUS data and constructed negatives rather than explicit acceptance or rejection of recommended times. A single diary day per respondent limits the history available to represent recurring behavior. Although the held-out test F1 narrowly meets the stated target, results may not generalize to Wasaa users or Kenyan students.
 
-The adapted commitment-risk model has no approved Wasaa dataset, real-data baseline or held-out evaluation in the repository. The upstream synthetic bookings and incompatible `bookingId` lookup are not used as Wasaa model inputs. The risk service and alerts are disabled by default. Automated tests use synthetic data and mocks. Institutional approval for research use of personal scheduling history and deployment of an evaluated Wasaa model remain unresolved.
+The running system has no no-show model or activity-risk reminders. Its Random Forest slot recommender remains the project's ML component.
 
 The user study is limited by the reported sample of ten SUS respondents and incomplete session metadata. The raw SUS item responses are unavailable for recalculation, and the UAT case table contradicts its summary. The local performance run was sequential and did not measure production or concurrent behavior. The Azure demonstration used an HTTP public IP at the time described; HTTPS, production SMTP, final-domain OAuth, VM network rules, backups and deployment of the Sprint 8 risk service were not independently verified. The Google Calendar importer is read-only and does not support all-day or cross-day events. No independent penetration test or formal external security audit was conducted.
 
 ### References to Project Evidence
 
-Implementation statements in this chapter are based on the WasaaLifestyle source repository and its associated documentation: `docs/system-architecture.md`, `docs/azure-vm-deployment.md`, `docs/performance-benchmark.md`, `docs/uat-sus-test-plan.md`, `docs/commitment-risk-e2e-checks.md`, `docs/production-security.md`, the CRISP-DM reports in `ml/slot-recommender/docs/`, the Laravel migrations and test suite, and the model metadata in `ml/slot-recommender/models/`. The chapter follows the objectives and requirement catalogue in the approved project proposal and the supplied Chapter 5 writing guidance.
+Implementation statements in this chapter are based on the WasaaLifestyle source repository and its associated documentation: `docs/system-architecture.md`, `docs/azure-vm-deployment.md`, `docs/performance-benchmark.md`, `docs/uat-sus-test-plan.md`, `docs/production-security.md`, the CRISP-DM reports in `ml/slot-recommender/docs/`, the Laravel migrations and test suite, and the model metadata in `ml/slot-recommender/models/`. The chapter follows the objectives and requirement catalogue in the approved project proposal and the supplied Chapter 5 writing guidance.
 
 U.S. Bureau of Labor Statistics. (2024). *American Time Use Survey—2023 Microdata Files*. https://www.bls.gov/tus/data/datafiles-2023.htm
 
@@ -407,11 +399,11 @@ The third objective, to develop a web-based system using a Random Forest slot re
 
 On the prepared ATUS data, the Random Forest achieved validation F1 0.7442, Hit Rate@3 0.3612 and MAE 3.682 hours. At the threshold selected on validation, held-out test F1 was 0.7510, narrowly meeting the proposal's greater-than-0.75 target; test Hit Rate@3 was 0.3675 and MAE 3.597 hours. Since suitability negatives are constructed from time-use records, these findings support comparative performance on the project's proxy dataset and do not prove that users would accept or complete the recommended slots.
 
-The fourth objective, to evaluate performance, predictive accuracy, usability and algorithmic efficiency, was addressed using automated tests, model validation, local HTTP timing and reported participant evaluation. The Laravel suite recorded 230 passed and four skipped tests; the Python recommender suite recorded 107 passed; and the updated no-show pipeline suite recorded 12 passed locally. The local benchmark recorded 270 successful route responses under two seconds. Ten user-provided SUS scores averaged 78.0, above the target of 68. The user-reported UAT summary was 19 of 20 cases (95 per cent), but the individual table marks all cases as passing, so the detailed acceptance result requires correction. These results do not show causal reductions in schedule conflicts or improvements in productivity.
+The fourth objective, to evaluate performance, predictive accuracy, usability and algorithmic efficiency, was addressed using automated tests, model validation, local HTTP timing and reported participant evaluation. The recorded test results predate removal of activity-risk code and must be rerun against the final code before release. The local benchmark recorded 270 successful route responses under two seconds. Ten user-provided SUS scores averaged 78.0, above the target of 68. The user-reported UAT summary was 19 of 20 cases (95 per cent), but the individual table marks all cases as passing, so the detailed acceptance result requires correction. These results do not show causal reductions in schedule conflicts or improvements in productivity.
 
-The later commitment-risk extension adds occurrence-outcome capture, leakage-limited feature preparation, an adaptation of the upstream calibrated logistic-regression model, a chronological evaluation pipeline, a private prediction endpoint, Laravel assessment integration, opt-in alert logic and tests. However, there is no approved real Wasaa dataset, real-data performance evaluation or trained Wasaa model artifact in the repository. Consequently, the extension is concluded to be an implemented but inactive prediction pathway, not a verified user-facing predictor. No real-user predictive accuracy or effectiveness of risk alerts is claimed.
+The proposed no-show/activity-risk feature was removed from the running app. Schedule outcomes are retained only as optional input for slot recommendation personalization; they do not generate risk levels or reminders.
 
-Overall, the project demonstrates an integrated smart-scheduling prototype with a tested application and a comparative slot-ranking model. Its evidence supports the system's implementation and measured prototype behavior within the specified environments. Model generalizability, user impact, the unresolved UAT detail, HTTPS/email production readiness, concurrent load and real-data commitment-risk performance remain outside the conclusions justified by the current record.
+Overall, the project demonstrates an integrated smart-scheduling prototype with a comparative slot-ranking model. Its evidence supports the system's implementation and measured prototype behavior within the specified environments. Model generalizability, user impact, the unresolved UAT detail, HTTPS/email production readiness and concurrent load remain outside the conclusions justified by the current record.
 
 ### 6.3 Recommendations
 
@@ -422,7 +414,7 @@ The recommendations below follow from the limitations and results in Chapter Fiv
 | Essential | Project author | Reconcile the UAT case table with the reported 19/20 result, identify the failed case, and attach the actual session date, tested environment and commit. | The current case table marks 20/20 Pass while the summary states 19/20. |
 | Essential | Project author and supervisor | Complete the participant-study record with the required consent/approval status, valid SUS response count and anonymized source responses or approved summary. | Ten scores and a mean are available, but raw item answers and study metadata are not. |
 | Essential before real users | System maintainer | Configure HTTPS, secure cookies, production SMTP, exact Google OAuth callback and tested backups before inviting users to enter real account data. | The Azure demonstration was accessed through HTTP; inbox delivery, final-domain OAuth and recovery readiness were not confirmed. |
-| Essential | System maintainer | Keep Flask services on loopback or a private network, keep retraining private, and keep commitment-risk flags off until an approved-real artifact and reviewed threshold are available. | The APIs rely on network isolation; no approved real risk model or evaluation is present. |
+| Essential | System maintainer | Keep the Flask slot-recommender on loopback or a private network and keep retraining private. | The API relies on network isolation. |
 | High | Researcher and supervisor | Obtain any required institutional approval before preparing or evaluating real user-history data, and record a data-retention and consent process. | No real Wasaa training dataset exists and approval requirements remain to be confirmed. |
 | High | ML developer | Evaluate the slot model on appropriately approved local user data with user-level separation and direct recommendation acceptance/outcome labels. | Current ATUS data is U.S.-based, one-day and proxy-labeled; held-out test F1 only narrowly meets the target and does not establish local-user performance. |
 | High | System maintainer | Perform a concurrent-load and deployed-server performance test with recorded hardware, dataset and workload details. | Existing timing evidence is a local sequential benchmark. |
@@ -435,7 +427,7 @@ Future work should extend the prototype based on evidence gaps rather than intro
 | Future direction | Rationale | Required work | Evaluation method |
 |---|---|---|---|
 | Localized slot-recommendation data | ATUS represents U.S. respondents and uses constructed labels; current F1 is below target. | Obtain consented and approved Wasaa usage data or an appropriate local dataset; define acceptance and completion outcomes. | User-level held-out evaluation reporting F1, Hit Rate@3, MAE and per-category performance against existing baselines. |
-| Real commitment-risk model evaluation | The risk pipeline is implemented but has no approved real data or held-out metrics. | Secure approvals, collect explicit occurrence outcomes, prepare the private dataset, compare a baseline and candidate model, and review calibration and alert threshold. | Chronological held-out evaluation, threshold-specific precision/recall, calibration and alert-volume analysis; never use synthetic test metrics as user evidence. |
+| No-show/activity-risk feature | Removed from the running app; no risk scores or reminders are generated. | Reconsider only if the project scope changes and suitable real Wasaa data can be collected and evaluated. | Validate against held-out real activity outcomes before making any prediction claim. |
 | Recommendation impact study | Offline ranking metrics do not show whether suggestions reduce conflicts or help users complete activities. | Conduct an approved pilot with suitable comparison or repeated-measures design. | Measure suggestion acceptance, completed activities, conflict frequency, replanning and SUS over a defined study period. |
 | Usability study with complete records | The reported SUS average exceeds the benchmark, but raw items, detailed case reconciliation and session metadata are missing. | Conduct or document approved sessions with anonymized task outcomes and the standard ten SUS items. | Report valid sample, mean, range, item-level scoring, task completion and observed usability issues. |
 | Calibration and explanations | The Random Forest's confidence values are not evidence of calibrated probabilities or causal feature effects. | Evaluate calibration on an appropriate held-out dataset and test understandable explanations. | Calibration curves and user comprehension tests; compare confidence with observed acceptance. |
@@ -443,4 +435,4 @@ Future work should extend the prototype based on evidence gaps rather than intro
 | Production reliability and scale | The demo is a single VM and the recorded performance workload is sequential. | Configure HTTPS, mail delivery, backup/restore, monitoring and concurrent-load controls; separate services if justified. | Security checks, restore drills, failure recovery and latency percentiles under defined concurrent workloads. |
 | Mobile and notification access | The current product is a responsive web application and does not send push notifications. | Evaluate mobile-browser usability and, only if justified, a native client or opt-in push channel. | Device-specific task completion, accessibility and notification-delivery evaluation. |
 
-The most important next research step is to validate the recommendation and commitment-risk components with appropriate, approved user data and complete evaluation records. Until then, WasaaLifestyle should be presented as a functional scheduling prototype with a validated slot-model comparison on proxy data and an implemented but inactive commitment-risk pathway.
+The most important next research step is to validate the recommendation component and reconcile the participant evaluation records. WasaaLifestyle should be presented as a functional scheduling prototype with an evaluated slot-model comparison on proxy data; the proposed no-show/activity-risk feature is not included.

@@ -105,37 +105,19 @@ every event. `POST /retrain` still retrains the population model from ATUS files
 does not use Wasaa outcomes. This separation avoids overfitting tiny, noisy histories and
 keeps one user's schedule data from changing recommendations for everyone else.
 
-### Private commitment-risk endpoint
+### User scheduling preferences
 
-`POST /noshow/predict` is separate from the existing slot-recommendation `POST /predict` contract. It accepts only the approved derived feature object (category, priority, weekday, scheduled hour, duration, lead time, and prior recorded-outcome counts/rates). It accepts no user ID, schedule ID, titles, notes, or upstream booking ID. Zero prior outcomes are valid for the synthetic cold-start estimate.
+Laravel sends the requested weekday's enabled availability hours and the user's preferred
+productivity-hour range with each recommendation request. The ranker excludes hours outside
+availability, keeps only start hours where the full requested duration ends by the
+selected window's closing time, ranks available hours inside the preferred range first, and then fills any
+remaining top-three slots from other available hours. The model confidence remains its
+original ATUS/user-history score. Settings periods map to morning 06:00–11:00, afternoon
+12:00–17:00, and evening 18:00–23:00; hours 00:00–05:00 are outside the selectable windows.
+If no periods are enabled for that weekday, the API returns a clear error asking the user
+to update availability.
 
-Train the prototype artifact from the pinned upstream synthetic dataset with `python ..\no-show\src\upstream_cold_start.py --artifact ..\no-show\models\commitment_risk.joblib --model-card ..\no-show\models\model_card.json`. The API accepts it only when the operator deliberately sets both `WASAA_RISK_MODEL_ENABLED=true` and `WASAA_RISK_ALLOW_SYNTHETIC_MODEL=true`. An approved-real Wasaa artifact is accepted through its own matching model card without the synthetic allowance. Both flags default to false in the Azure unit. Use a systemd override rather than editing the tracked unit:
+### No-show risk
 
-```text
-WASAA_RISK_MODEL_ENABLED=true
-WASAA_RISK_ALLOW_SYNTHETIC_MODEL=true
-WASAA_RISK_MODEL_PATH=/var/www/wasaa/ml/no-show/models/commitment_risk.joblib
-WASAA_RISK_MODEL_CARD_PATH=/var/www/wasaa/ml/no-show/models/model_card.json
-```
-
-The upstream cold-start result is explicitly returned as `evidence_type: synthetic-upstream` and `prototype_only: true`. The notification UI labels any corresponding alert as a prototype estimate. The upstream validation threshold and held-out metrics are synthetic and do not establish a Wasaa alert threshold or Wasaa-user accuracy. Leave alerts disabled/unconfigured on Azure unless deliberately staging a labelled demonstration. Missing, disabled, incompatible, or version-mismatched artifacts return HTTP 503 without affecting the existing recommender. The current Azure systemd unit binds Gunicorn to `127.0.0.1:5001`; keep port 5001 closed in the VM network security group.
-
-Request example (illustrative values only):
-
-```json
-{
-  "category": "work",
-  "priority": "medium",
-  "weekday": 2,
-  "scheduled_hour": 14,
-  "duration_minutes": 60,
-  "lead_hours": 24,
-  "prior_labeled_count": 0,
-  "prior_missed_rate": null,
-  "prior_same_category_labeled_count": 0,
-  "prior_same_category_missed_rate": null
-}
-```
-
-The response contains a probability in `[0, 1]`, up to three positive logistic-contribution factors, and model name/version metadata. Invalid, missing, extra, or out-of-range fields receive HTTP 400. Service errors and unavailable models do not echo submitted values or identifiers. The endpoint itself does not create alerts or enable user-facing predictions; Laravel integration and alert controls are separate Sprint 8 issues.
+Wasaa does not include a no-show/activity-risk prediction or reminder feature. Flask exposes the time-slot recommendation contract at `POST /predict` and the protected ATUS retraining endpoint.
 

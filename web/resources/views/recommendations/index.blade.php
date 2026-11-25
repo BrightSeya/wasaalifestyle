@@ -5,48 +5,10 @@
             <div><p class="text-xs font-bold uppercase tracking-[.16em] text-amber-800">Personalized planning</p><h2 class="mt-1 text-xl font-semibold tracking-tight text-gray-950">Find a time that fits your life</h2><p class="mt-1 max-w-2xl text-sm leading-6 text-gray-600">Wasaa checks your activities against your schedule and explains the evidence behind each suggestion.</p></div>
         </div>
     </header>
-    <nav class="mb-5 flex flex-wrap gap-2" aria-label="Recommendation type">
-        <a href="{{ route('recommendations.index') }}" @class(['rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition', 'border-amber-300 bg-amber-100 text-amber-950' => $type === 'activities', 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50' => $type !== 'activities'])>Activity time improvements</a>
-        <a href="{{ route('recommendations.index', ['type' => 'alerts']) }}" @class(['rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition', 'border-amber-300 bg-amber-100 text-amber-950' => $type === 'alerts', 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50' => $type !== 'alerts'])>Commitment alternatives</a>
-    </nav>
-
     @if (session('status'))<div class="mb-4 rounded-lg bg-green-50 p-3 text-sm text-green-800" role="status">{{ session('status') }}</div>@endif
     @if (session('error'))<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-800" role="alert">{{ session('error') }}</div>@endif
 
-    @if ($type === 'alerts')
-        <p class="mb-5 text-sm text-gray-600">Alternative times requested from no-show alerts. Your existing commitment changes only when you choose a time.</p>
-        @if ($recommendations->isEmpty())
-            <p class="rounded-xl bg-white p-6 text-sm text-gray-500 shadow-sm">No pending commitment alternatives.</p>
-        @else
-            <div class="grid gap-4 md:grid-cols-2">
-                @foreach ($recommendations as $recommendation)
-                    <article class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-md">
-                        <div class="border-b border-amber-100 bg-gradient-to-r from-amber-50 to-white px-5 py-4"><p class="text-xs font-bold uppercase tracking-wide text-amber-800">Commitment alternative</p><h2 class="mt-1 font-semibold text-gray-950">{{ $recommendation->sourceSchedule?->title ?? ucfirst($recommendation->category->value) }}</h2></div>
-                        <div class="p-5"><p class="text-base font-semibold text-gray-800">{{ $recommendation->suggested_start->format('l, M j') }}</p><p class="mt-1 text-sm text-gray-600">{{ $recommendation->suggested_start->format('g:i A') }}–{{ $recommendation->suggested_end->format('g:i A') }} <span class="ml-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">{{ round($recommendation->confidence_score * 100) }}% match</span></p>
-                        <p class="mt-3 rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-2.5 text-xs leading-5 text-amber-950">Why this suggestion: Wasaa flagged the original commitment as at risk. This is an optional alternative time; your schedule changes only if you choose it.</p>
-                        @php $alternativeConflicts = (session('alternative_conflicts') ?? [])[$recommendation->id] ?? null; @endphp
-                        @if ($alternativeConflicts)
-                            <p class="mt-3 text-xs text-red-700">This time now conflicts with your schedule: {{ implode(' ', $alternativeConflicts) }}</p>
-                        @endif
-                        <div class="mt-4 flex gap-2">
-                            <form method="POST" action="{{ route('recommendations.accept', $recommendation) }}">
-                                @csrf
-                                @if ($alternativeConflicts)<input type="hidden" name="confirmed" value="1">@endif
-                                <button class="rounded-xl bg-brand px-4 py-2 text-xs font-bold text-gray-950 shadow-sm hover:bg-brand-dark">{{ $alternativeConflicts ? 'Move anyway' : 'Move to this time' }}</button>
-                            </form>
-                            <form method="POST" action="{{ route('recommendations.dismiss', $recommendation) }}">
-                                @csrf
-                                <button class="rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">Dismiss</button>
-                            </form>
-                        </div>
-                        </div>
-                    </article>
-                @endforeach
-            </div>
-            <div class="mt-5">{{ $recommendations->links() }}</div>
-        @endif
-    @else
-    <p class="mb-5 text-sm text-gray-600">Choose a conflict-free time suggestion to add an activity to your schedule. We show up to four at once; use the page controls to see more.</p>
+    <p class="mb-5 text-sm text-gray-600">Choose conflict-free sessions to add your activities to your schedule. Repeatable activities can have multiple suggestions based on their weekly frequency. We show up to four at once; use the page controls to see more.</p>
 
     @if ($error)
         <div role="status" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{{ $error }}</div>
@@ -115,5 +77,4 @@
             });
         });
     </script>
-    @endif
 </x-layouts.app>

@@ -50,9 +50,8 @@ jobs:
             echo "::error::Files over 50MB: $big"; exit 1
           fi
           grep -q -- '--bind 127.0.0.1:5001' deploy/azure/wasaa-recommender.service
-          grep -q 'Environment=WASAA_RISK_MODEL_ENABLED=false' deploy/azure/wasaa-recommender.service
-          grep -q 'Environment=WASAA_RISK_ALLOW_SYNTHETIC_MODEL=false' deploy/azure/wasaa-recommender.service
-          grep -q '^COMMITMENT_RISK_ENABLED=false$' web/.env.example
+          ! grep -q 'WASAA_RISK_MODEL' deploy/azure/wasaa-recommender.service
+          ! grep -q '/noshow/predict' ml/slot-recommender/app/api.py
 
   laravel:
     name: Laravel tests

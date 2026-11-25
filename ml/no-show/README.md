@@ -1,10 +1,12 @@
-# No-show preparation pipeline (Sprint 8)
+# Archived no-show research
 
-This folder supports two model stages. The cold-start prototype is trained from the pinned synthetic booking dataset in [`data/upstream/bookings.csv`](data/upstream/bookings.csv), using the Logistic Regression and Platt-calibration implementation from [`BrightSeya/scheduling`](https://github.com/BrightSeya/scheduling/blob/main/app/model.py). It maps compatible request fields from Wasaa and uses training-set centers for source fields that Wasaa does not collect; unmatched lifestyle categories have no learned source-category effect. Prototype scores are labelled synthetic and do not establish prediction quality for Wasaa users. See [upstream provenance and feature mapping](UPSTREAM_MODEL.md).
+The running WasaaLifestyle app has no no-show model, activity-risk rules, or risk reminders. This folder contains historical experiments and synthetic appointment-domain training material only; Laravel and Flask do not load or call it.
 
-With user consent, each assessment uses that user's prior completed/missed activity logs and schedule outcomes. These update overall and same-category history features, and same-category history progressively adjusts the synthetic cold-start probability with shrinkage. Skipped and cancelled outcomes are excluded. This per-user update happens as outcomes are recorded; it does not pool a person's data into another user's predictions or refit shared weights after every outcome. The separate Wasaa trainer can replace the cold-start model only after sufficient approved outcomes support chronological validation against a baseline.
+The remaining preparation and training notes below describe archived research scripts, not supported app workflows. In particular, the Laravel `noshow:prepare-dataset` command was removed and cannot be run in the current app.
 
-The Python model service and Laravel integration are available by default. New users see an unchecked consent option at signup; accepting enables predictions and in-app alerts. Existing accounts stay opted out until enabled in Settings. Turning off **No-show predictions and learning** prevents future assessments and alert generation for that account. Estimates remain clearly labelled prototypes until evaluated with Wasaa outcomes.
+The archived experiments do not describe the current app. The live ML feature is the separate slot recommender in `../slot-recommender/`.
+
+The slot recommender can use a consenting user's own activity outcomes to personalize rankings. It does not train a shared model on user data.
 
 ## Label and feature rules
 
@@ -14,12 +16,13 @@ The Python model service and Laravel integration are available by default. New u
 - Predictors are category, priority, weekday, scheduled hour, duration, lead time, and counts/rates from the same user's earlier explicit `completed`/`missed` occurrences. An earlier outcome contributes only if its occurrence ended and its result was recorded before the target occurrence began.
 - No title, description, user ID, schedule ID, final outcome, or record timestamp is a predictor. Unknown input columns are rejected to prevent accidental leakage.
 - Missing personal history is represented by count 0 and a null rate; no arbitrary history threshold is applied.
+- Schedule time changes are recorded separately as reschedule events, including old/new times and whether the change affects one activity, one recurring occurrence, or the whole recurring series. They are not labeled completed or missed.
 - Historical schedule density is not included because the current schema does not preserve enough schedule-edit history to reconstruct past calendars safely.
 - The baseline predicts the training period's majority class and is scored on the latest chronological holdout. Tied timestamps remain together in the holdout. No model is fitted.
 
 ## Preparing an approved local dataset
 
-The Laravel command streams needed occurrence records from the configured database directly into the Python process through memory. It does not create a raw CSV export. The derived feature file and JSON report are written to `web/storage/app/private/no-show/`, which is ignored by Git.
+Historical implementation notes below are retained as research history only. The Laravel dataset command and app integration have been removed; these instructions do not describe the current application or deployment process.
 
 Only run this command after required supervisor/institutional approval is confirmed:
 
@@ -42,56 +45,50 @@ cd ml/slot-recommender
 python -m pytest ..\no-show\tests
 ```
 
-## Cold-start model: train from the upstream synthetic dataset
+## Train a model from Wasaa outcomes
 
-The upstream repository does not commit a portable model artifact; its `train()` function fits one from its synthetic dataset. Wasaa bundles that dataset at the pinned upstream commit and reproduces the source chronological split, Logistic Regression, validation Platt calibration, and F1 threshold selection. Training also records a final chronological synthetic holdout in a local model card. These synthetic metrics describe only the source dataset.
+The training scripts and synthetic appointment data below are archived research material. They are not part of the running app, and the app does not train a model. The Wasaa preparation/training commands are retained only for possible future research if that work is approved.
 
-From the repository root, create the private local artifact and card:
+The historical rule assessment added points for duration, schedule load, overlaps, time of day, and prior missed outcomes. It is not used by the running app.
+
+After required institutional/supervisor approval, prepare the private dataset using the Laravel command above, then train from those derived files:
 
 ```powershell
 cd ml/slot-recommender
-.\.venv\Scripts\python.exe ..\no-show\src\upstream_cold_start.py `
+.\.venv\Scripts\python.exe ..\no-show\src\train_model.py `
+  --dataset ..\..\web\storage\app\private\no-show\occurrence-features.csv `
+  --report ..\..\web\storage\app\private\no-show\baseline-report.json `
   --artifact ..\no-show\models\commitment_risk.joblib `
   --model-card ..\no-show\models\model_card.json
 ```
 
-The generated model files are ignored by Git. To load this model for a local prototype session, explicitly set both Python flags before starting Flask:
-
-```powershell
-$env:WASAA_RISK_MODEL_ENABLED = 'true'
-$env:WASAA_RISK_ALLOW_SYNTHETIC_MODEL = 'true'
-python app/api.py
-```
-
-Laravel's service integration and alert threshold are enabled by default, but predictions run only for a user who opted in at signup or in Settings. The threshold selected on the upstream synthetic validation slice is not a real-user alert threshold; the configured `0.75` default is conservative but also requires Wasaa evaluation. Every estimate and alert is labelled as prototype-only.
+A successful research run still writes `user_facing_predictions_enabled: false`. Keep the model unavailable until data sufficiency, held-out performance, calibration, alert burden, and a user-facing threshold have been reviewed and the model card is explicitly approved. Never commit raw occurrence data or generated model artifacts.
 
 ## Current Wasaa evidence status
 
-The repository has the pinned upstream synthetic dataset and no approved real Wasaa dataset snapshot. A cold-start artifact can be generated for a labelled prototype. Real Wasaa counts, baseline, and model metrics remain unavailable until approved Wasaa occurrence outcomes are collected.
+There is no active no-show model or activity-risk rule system in the application. No predictive accuracy claim is made.
 
 ## Model evaluation gate
 
-`src/train_model.py` is the later Wasaa-data trainer. It uses the Wasaa outcome schema, pre-event features, chronological train/validation/held-out split, validation-fitted Platt calibration, and a majority baseline. It refuses persistent artifact creation unless the preparation report is `approved-real`. The cold-start model uses the source dataset; this later trainer uses approved Wasaa outcomes and replaces it only after evaluation review. The two kinds of metrics must not be compared as if they came from the same population or label definition.
+Any future decision to add no-show prediction is outside the current implementation and would require suitable Wasaa outcomes and a separate evaluation.
 
 The trainer refuses to create artifacts unless the dataset report is labeled `approved-real` and the baseline has a valid chronological holdout. It also stops if each chronological partition cannot support both labels. Synthetic fixtures may exercise this pipeline, but their metrics are not Wasaa-user evidence. All model artifacts and private reports stay out of Git. Even a successful Wasaa evaluation leaves `user_facing_predictions_enabled` false pending review of data sufficiency, metrics, and an alert threshold.
 
 ## Service and alert integration
 
-The Python service exposes a separate private `POST /noshow/predict` route; it does not replace the slot recommender's `POST /predict` route. Laravel performs authentication, schedule ownership and occurrence eligibility checks, derives allow-listed features from earlier explicit outcomes, and can send zero/null history to the cold-start model. The Python service maps supported schedule/history features and does not connect to the application database. The synthetic upstream model is enabled in the tracked service configuration. Its API response is labelled `synthetic-upstream` and `prototype_only=true`; Laravel's per-user consent remains the final gate.
-
-The Laravel alert command is scheduled once per minute. It requires the user's prediction opt-in and alert preference, an eligible upcoming occurrence, and a successful assessment above the configured threshold. Synthetic cold-start notifications are explicitly labelled “Prototype estimate” and explain that the model uses synthetic bookings. Alerts are in-app only, deduplicated per assessment, and dismissible; they never move a schedule automatically. Each account must explicitly opt in and all estimates remain clearly labelled prototypes. See [the system architecture](../../docs/system-architecture.md), [end-to-end checks](../../docs/commitment-risk-e2e-checks.md), and [Azure deployment runbook](../../docs/azure-vm-deployment.md).
+The running app has no no-show risk service or reminder scheduler. Flask handles slot recommendations only. See [the system architecture](../../docs/system-architecture.md) and [Azure deployment runbook](../../docs/azure-vm-deployment.md).
 
 ## Current evidence record
 
 | Evidence item | Repository status |
 |---|---|
-| Upstream synthetic data and training | 21,333 synthetic bookings, pinned to upstream commit `c40599197b054a5248461c0ff9a2532fd3e4da1c`; cold-start artifact generated locally and ignored by Git. |
-| Synthetic upstream held-out result | ROC-AUC 0.7507 and Brier score 0.1358 on the upstream synthetic holdout; not Wasaa-user performance. |
+| Active no-show/risk feature | None; no no-show model, rules, or reminders are used by the app. |
+| Previous synthetic appointment experiment | Archived research only; its data and metrics are not used by the app. |
 | Approved real Wasaa occurrence dataset and dataset counts | Not available; no real Wasaa dataset was prepared or read. |
 | Real-data majority baseline and held-out model metrics | Not available; no approved-real training report or model card is present. |
 | Real-data evaluation date and evaluated commit | Not available; there is no real-data evaluation to identify. |
-| Tracked configuration defaults | The synthetic cold-start service is available; each account must explicitly opt in. A private VM override cannot be verified from this repository checkout. |
+| Runtime integration | None; the archived model and training scripts are disconnected from Laravel and Flask. |
 | Automated pipeline / endpoint tests | Synthetic generated rows and test doubles verify code behavior only. They do not measure Wasaa-user performance. |
 | Azure deployment verification | Deferred until the user completes the planned final hosting pass; repository documentation does not claim VM verification. |
 
-Do not describe the synthetic holdout as Wasaa accuracy. After institutional/supervisor approval, collect explicit Wasaa outcomes, prepare a private dataset, review exclusions, evaluate against a chronological holdout and baseline, and replace the prototype only if the evidence supports it. Raw user records, private feature files, model artifacts, and sensitive reports stay out of Git.
+After institutional/supervisor approval, collect explicit Wasaa outcomes, prepare a private dataset, review exclusions, evaluate against a chronological holdout and baseline, and enable a model only if the evidence supports it. Raw user records, private feature files, model artifacts, and sensitive reports stay out of Git.

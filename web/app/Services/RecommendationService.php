@@ -42,6 +42,7 @@ class RecommendationService
     public function recommendForDetails(User $user, Category $category, Carbon $date, int $duration, float $gapHours = self::DEFAULT_GAP_HOURS, array $excludedHours = []): array
     {
         $day = $date->copy()->startOfDay();
+        $preferences = UserPreferences::fromArray($user->preferences);
 
         return $this->requestRecommendations($user, [
             'category' => $category->value,
@@ -50,6 +51,7 @@ class RecommendationService
             'schedule_density' => $this->scheduleDensity($user, $day),
             'gap_since_last_same_category_hrs' => $gapHours,
             'exclude_hours' => array_values(array_unique(array_map('intval', $excludedHours))),
+            ...$this->preferenceHours($preferences, $day, $duration),
         ]);
     }
 
@@ -62,6 +64,7 @@ class RecommendationService
     {
         $day = $date->copy()->startOfDay();
         $duration = (int) abs($schedule->start_datetime->diffInMinutes($schedule->end_datetime));
+        $preferences = UserPreferences::fromArray($user->preferences);
 
         return $this->requestRecommendations($user, [
             'category' => $schedule->category->value,
@@ -69,10 +72,35 @@ class RecommendationService
             'duration_min' => $duration,
             'schedule_density' => $this->scheduleDensity($user, $day),
             'gap_since_last_same_category_hrs' => self::DEFAULT_GAP_HOURS,
+            ...$this->preferenceHours($preferences, $day, $duration),
         ]);
     }
 
-    /** @param array<string, int|float|string> $payload
+    /** Translate the user's day/period settings into hours the ranker can filter and prioritize. */
+    private function preferenceHours(UserPreferences $preferences, Carbon $day, int $duration): array
+    {
+        $dayKey = strtolower($day->format('D'));
+        $periods = ['morning' => [6, 11], 'afternoon' => [12, 17], 'evening' => [18, 23]];
+        $available = [];
+        foreach ($periods as $period => [$startHour, $endHour]) {
+            if (! $preferences->availability[$dayKey][$period]) {
+                continue;
+            }
+
+            foreach (range($startHour, $endHour - 1) as $hour) {
+                if (($hour * 60) + $duration <= $endHour * 60) {
+                    $available[] = $hour;
+                }
+            }
+        }
+
+        return [
+            'available_hours' => array_values(array_unique($available)),
+            'preferred_hours' => range($preferences->peakStartHour, $preferences->peakEndHour - 1),
+        ];
+    }
+
+    /** @param array<string, mixed> $payload
      * @return array{ok: true, recommendations: array}|array{ok: false, message: string}
      */
     private function requestRecommendations(User $user, array $payload): array

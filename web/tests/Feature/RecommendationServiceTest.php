@@ -51,6 +51,55 @@ class RecommendationServiceTest extends TestCase
         });
     }
 
+    public function test_available_hours_only_include_starts_where_the_full_duration_fits(): void
+    {
+        Http::fake(['*/predict' => Http::response(['recommendations' => []])]);
+
+        $user = User::factory()->create();
+        $activity = Activity::factory()->for($user)->create(['duration_minutes' => 60]);
+
+        $this->service()->recommend($user, $activity, Carbon::parse('2026-09-28')); // Monday
+
+        Http::assertSent(fn ($request) => $request['available_hours'] === [6, 7, 8, 9, 10, 12, 13, 14, 15, 16]);
+    }
+
+    public function test_day_with_no_enabled_availability_periods_returns_a_clear_error(): void
+    {
+        Http::fake([
+            '*/predict' => Http::response([
+                'error' => 'No available time window is long enough for this activity on this day. Update availability or reduce the activity duration.',
+            ], 422),
+        ]);
+
+        $user = User::factory()->create(['preferences' => [
+            'availability' => ['mon' => ['morning' => false, 'afternoon' => false, 'evening' => false]],
+        ]]);
+        $activity = Activity::factory()->for($user)->create(['duration_minutes' => 60]);
+
+        $result = $this->service()->recommend($user, $activity, Carbon::parse('2026-09-28')); // Monday
+
+        $this->assertFalse($result['ok']);
+        $this->assertStringContainsString('Update availability', $result['message']);
+        Http::assertSent(fn ($request) => $request['available_hours'] === []);
+    }
+
+    public function test_activity_longer_than_every_enabled_period_has_no_available_start_hours(): void
+    {
+        Http::fake([
+            '*/predict' => Http::response([
+                'error' => 'No available time window is long enough for this activity on this day. Update availability or reduce the activity duration.',
+            ], 422),
+        ]);
+
+        $user = User::factory()->create();
+        $activity = Activity::factory()->for($user)->create(['duration_minutes' => 360]);
+
+        $result = $this->service()->recommend($user, $activity, Carbon::parse('2026-09-28')); // Monday
+
+        $this->assertFalse($result['ok']);
+        Http::assertSent(fn ($request) => $request['available_hours'] === []);
+    }
+
     public function test_request_sends_only_the_users_recent_completed_and_missed_outcomes(): void
     {
         $this->travelTo(Carbon::parse('2026-11-16 12:00:00'));

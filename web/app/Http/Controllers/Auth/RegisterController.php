@@ -19,17 +19,13 @@ class RegisterController extends Controller
 
     public function store(RegisterRequest $request): RedirectResponse
     {
-        $consentedToCommitmentRisk = $request->boolean('commitment_risk_consent');
         $consentedToRecommendationPersonalization = $request->boolean('recommendation_personalization_consent');
         $preferences = UserPreferences::default()->toArray();
-        $preferences['commitment_risk_enabled'] = $consentedToCommitmentRisk;
-        $preferences['notify_commitment_risk'] = $consentedToCommitmentRisk;
         $preferences['personalize_recommendations'] = $consentedToRecommendationPersonalization;
 
         $user = User::create([
             ...$request->safe()->only(['name', 'email', 'password']),
             'preferences' => $preferences,
-            'commitment_risk_consent_at' => $consentedToCommitmentRisk ? now() : null,
             'recommendation_personalization_consent_at' => $consentedToRecommendationPersonalization ? now() : null,
         ]);
         $user->sendEmailVerificationNotification();

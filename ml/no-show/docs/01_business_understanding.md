@@ -78,7 +78,7 @@ The model/data issue should not claim readiness until the team can report:
 5. Held-out discrimination and probability-calibration results, plus the alert volume/precision at the chosen threshold.
 6. Whether the evidence comes from real, approved Wasaa outcomes or synthetic fixtures.
 
-The pinned upstream synthetic dataset supports the cold-start demonstration and can produce a clearly labelled prototype estimate. The local model API requires an explicit synthetic-model allowance; the Azure unit and application flags remain disabled by default. These scores cannot substantiate a claim about Wasaa-user accuracy. Collect approved explicit Wasaa outcomes, compare against a chronological baseline and held-out model, and review calibration and alert volume before replacing the synthetic model or making user-performance claims. Do not set an arbitrary real-user threshold.
+The appointment model was explored as a prototype but has been removed from the running app. Laravel now uses a rule-based assessment based on duration, time, same-day schedule load, overlaps and prior missed outcomes. It reports only an ordinal risk level, never a probability. The rules are provisional heuristics and have not been statistically validated.
 
 ## 7. Decisions and remaining gate
 
@@ -93,11 +93,11 @@ The pinned upstream synthetic dataset supports the cold-start demonstration and 
 | Alerts | Opt-in, off by default, in-app only, one hour before the occurrence, at most once per occurrence. |
 | User control | Alerts are estimates, can be dismissed, and never change a schedule automatically. Alternatives require user confirmation and a final conflict check. |
 | Data retention | Outcome records follow schedule retention and are removed with the schedule/account; no raw exports or Git commits. |
-| Data/model readiness | The upstream synthetic model can power an explicitly enabled, labelled cold-start demonstration. It does not establish Wasaa-user performance. Replace it only after approved Wasaa data, baseline comparison and held-out evaluation support the replacement. |
+| Data/model readiness | No no-show model is integrated. The running app uses opt-in rule-based assessments and retains user outcomes for the rules; it makes no predictive accuracy claim. |
 | Numeric history/score thresholds | The upstream synthetic F1 threshold is recorded for prototype reproducibility, not approved for Wasaa alerts. Choose a real-user threshold only from reviewed Wasaa validation results. |
 
 **Remaining gate:** confirm any supervisor or institutional approval needed before collecting or evaluating participant/user outcomes. This does not change the approved product policy above.
 
 ## 8. Next work after this research decision
 
-Occurrence-level outcome capture was delivered in Sprint 8 issue #119. Issue #110 implements the leakage-safe preparation pipeline and majority baseline. The cold-start path now fits the upstream logistic-regression and Platt-calibration model on the pinned synthetic booking data, then applies a documented feature adapter to Wasaa requests. No upstream booking-ID lookup is used. New explicit Wasaa outcomes change prior-history inputs, but do not refit model weights online. The separate Wasaa trainer remains gated on approved data, a usable chronological baseline and review of held-out results.
+Occurrence-level outcome capture was delivered in Sprint 8 issue #119. Issue #110 implements the leakage-safe preparation pipeline and majority baseline. The existing appointment model's weights do not learn online; explicit Wasaa outcomes provide per-user history and later support evaluation and adaptation. Future changes must compare the existing model, an adapted version and the rule fallback on chronological held-out Wasaa records.
