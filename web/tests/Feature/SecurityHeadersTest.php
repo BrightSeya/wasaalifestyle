@@ -26,7 +26,7 @@ class SecurityHeadersTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertHeaderMissing('Strict-Transport-Security')
-            ->assertHeader('Content-Security-Policy', "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data:; font-src 'self' data: https://fonts.bunny.net; style-src 'self' 'unsafe-inline' https://fonts.bunny.net; script-src 'self'; connect-src 'self'");
+            ->assertHeader('Content-Security-Policy', "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data:; font-src 'self' data: https://fonts.bunny.net https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.bunny.net https://fonts.googleapis.com; script-src 'self'; connect-src 'self'");
 
         $this->get('https://localhost/')
             ->assertHeader('Strict-Transport-Security', 'max-age=31536000');
