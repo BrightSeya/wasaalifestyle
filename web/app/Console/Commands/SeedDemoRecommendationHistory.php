@@ -19,6 +19,11 @@ class SeedDemoRecommendationHistory extends Command
 
     private const OUTCOME_COUNT = 160;
 
+    private const LEGACY_ACTIVITY_NAMES = [
+        'Demo: Morning exercise' => 'Morning exercise',
+        'Demo: Evening reading' => 'Evening reading',
+    ];
+
     public function handle(): int
     {
         $email = trim((string) $this->argument('email'));
@@ -47,6 +52,12 @@ class SeedDemoRecommendationHistory extends Command
             return self::FAILURE;
         }
 
+        if ($this->renamePreviouslySeededActivities($user)) {
+            $this->components->info('Renamed the two seeded activities. Their 160 history records were left unchanged.');
+
+            return self::SUCCESS;
+        }
+
         if ($user->activities()->exists()
             || $user->activityLogs()->exists()
             || $user->schedules()->exists()
@@ -59,14 +70,14 @@ class SeedDemoRecommendationHistory extends Command
         DB::transaction(function () use ($user): void {
             $activities = collect([
                 [
-                    'name' => 'Demo: Morning exercise',
+                    'name' => 'Morning exercise',
                     'category' => 'exercise',
                     'preferred_time_of_day' => '08:00:00',
                     'frequency' => 4,
                     'duration_minutes' => 45,
                 ],
                 [
-                    'name' => 'Demo: Evening reading',
+                    'name' => 'Evening reading',
                     'category' => 'leisure',
                     'preferred_time_of_day' => '19:00:00',
                     'frequency' => 5,
@@ -103,5 +114,40 @@ class SeedDemoRecommendationHistory extends Command
         $this->line('Personalization consent was not changed. The account owner must enable it in Settings.');
 
         return self::SUCCESS;
+    }
+
+    private function renamePreviouslySeededActivities(User $user): bool
+    {
+        $activities = $user->activities()->get();
+        $legacyNames = collect(array_keys(self::LEGACY_ACTIVITY_NAMES))->sort()->values();
+
+        if ($activities->count() !== 2
+            || $activities->pluck('name')->sort()->values()->all() !== $legacyNames->all()
+            || $user->schedules()->exists()
+            || $user->recommendations()->exists()) {
+            return false;
+        }
+
+        $logs = $user->activityLogs()->get(['activity_id', 'status']);
+        if ($logs->count() !== self::OUTCOME_COUNT) {
+            return false;
+        }
+
+        foreach ($activities as $activity) {
+            $activityLogs = $logs->where('activity_id', $activity->getKey());
+            if ($activityLogs->count() !== 80
+                || $activityLogs->where('status', 'completed')->count() !== 40
+                || $activityLogs->where('status', 'missed')->count() !== 40) {
+                return false;
+            }
+        }
+
+        DB::transaction(function () use ($activities): void {
+            foreach ($activities as $activity) {
+                $activity->update(['name' => self::LEGACY_ACTIVITY_NAMES[$activity->name]]);
+            }
+        });
+
+        return true;
     }
 }

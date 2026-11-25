@@ -203,7 +203,7 @@ cd /var/www/wasaa/web
 php artisan demo:seed-recommendation-history demo@example.com --force
 ```
 
-The command refuses accounts that already contain app data and adds 160 synthetic outcomes from the prior 320 days (80 completed and 80 missed). It does not create credentials, alter existing records, or enable personalization consent. The account owner must enable personalized recommendations in Settings. The personal model is used only if it passes its held-out comparison against the population model; enough history does not guarantee that it will outperform.
+The command refuses accounts that already contain app data and adds 160 synthetic outcomes from the prior 320 days (80 completed and 80 missed). It does not create credentials or enable personalization consent. Running it again on a matching account created by the earlier version only removes the old `Demo:` prefixes from the two activity names; it does not add more history. The account owner must enable personalized recommendations in Settings. The personal model is used only if it passes its held-out comparison against the population model; enough history does not guarantee that it will outperform.
 
 ## Sprint 8 deployment verification record
 

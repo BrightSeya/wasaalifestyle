@@ -23,6 +23,10 @@ class SeedDemoRecommendationHistoryCommandTest extends TestCase
 
         $this->assertSame(0, $exitCode);
         $this->assertSame(2, $user->activities()->count());
+        $this->assertSame(
+            ['Evening reading', 'Morning exercise'],
+            $user->activities()->orderBy('name')->pluck('name')->all(),
+        );
         $this->assertSame(160, $user->activityLogs()->count());
         $this->assertSame(80, $user->activityLogs()->where('status', 'completed')->count());
         $this->assertSame(80, $user->activityLogs()->where('status', 'missed')->count());
@@ -34,6 +38,23 @@ class SeedDemoRecommendationHistoryCommandTest extends TestCase
         $this->assertCount(160, $history);
         $this->assertSame(80, count(array_filter($history, fn (array $outcome): bool => $outcome['label'] === 1)));
         $this->assertSame(80, count(array_filter($history, fn (array $outcome): bool => $outcome['label'] === 0)));
+    }
+
+    public function test_it_renames_the_previous_seeded_activities_without_adding_more_history(): void
+    {
+        $user = User::factory()->create();
+        Artisan::call('demo:seed-recommendation-history', ['email' => $user->email]);
+        $user->activities()->where('name', 'Morning exercise')->update(['name' => 'Demo: Morning exercise']);
+        $user->activities()->where('name', 'Evening reading')->update(['name' => 'Demo: Evening reading']);
+
+        $exitCode = Artisan::call('demo:seed-recommendation-history', ['email' => $user->email]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(
+            ['Evening reading', 'Morning exercise'],
+            $user->activities()->orderBy('name')->pluck('name')->all(),
+        );
+        $this->assertSame(160, $user->activityLogs()->count());
     }
 
     public function test_it_refuses_to_add_synthetic_history_to_an_account_with_existing_data(): void
