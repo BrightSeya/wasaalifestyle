@@ -156,7 +156,7 @@ The `CI` workflow deploys a successful push to `main` after the frontend build, 
    Validate the file with `sudo visudo -c`. Do not grant the runner unrestricted sudo access.
 5. Protect `main` so only reviewed changes can trigger production deployment.
 
-Each successful push to `main` fetches the latest code into `/var/www/wasaa`, installs production Composer and npm dependencies, builds browser assets, applies Laravel migrations, refreshes the config cache, and reloads the recommender, PHP-FPM, and Nginx. The workflow never overwrites `.env` or transfers model artifacts. Back up the database before releases that include migrations; keep VM and database backups current.
+Each successful push to `main` fetches the latest code into `/var/www/wasaa`, installs production Composer dependencies, copies the browser assets built and uploaded by the GitHub-hosted frontend job, applies Laravel migrations, refreshes the config cache, and reloads the recommender, PHP-FPM, and Nginx. Node.js and npm are needed by the GitHub-hosted build job, not on the VM. The workflow never overwrites `.env` or transfers model artifacts. Back up the database before releases that include migrations; keep VM and database backups current.
 
 If a deployment fails, inspect the failing job in GitHub **Actions** and the Laravel/Nginx/service logs on the VM. Do not run `key:generate` during an update or recovery.
 
