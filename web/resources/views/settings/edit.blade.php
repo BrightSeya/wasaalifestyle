@@ -95,7 +95,7 @@
 
         <section class="app-card rounded-2xl border border-gray-200/80 bg-white p-5 sm:p-6" aria-labelledby="calendar-connection-heading">
             <h2 id="calendar-connection-heading" class="mb-1 text-sm font-semibold text-gray-700">Google Calendar</h2>
-            <p class="mb-4 text-xs text-gray-500">Connect your calendar with read-only event access. Wasaa will not change your Google Calendar.</p>
+            <p class="mb-4 text-xs text-gray-500">Connect Google Calendar and Tasks with read-only access. Wasaa also reads the connected Google account email to identify the account; it will not change items in Google.</p>
 
             @if (session('calendar_error'))
                 <p role="alert" class="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{{ session('calendar_error') }}</p>
@@ -103,7 +103,21 @@
 
             @if ($calendarConnection)
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <p class="text-sm text-green-800">Google Calendar is connected.</p>
+                    <div>
+                        <p class="text-sm text-green-800">Google Calendar is connected.</p>
+                        @if ($calendarConnection->google_account_email)
+                            <p class="mt-1 text-xs text-gray-600">Google account: {{ $calendarConnection->google_account_email }}</p>
+                        @endif
+                        @unless ($calendarTasksAuthorized)
+                            <p class="mt-1 text-xs text-amber-800">Reconnect to grant read-only Google Tasks access before importing tasks.</p>
+                        @endunless
+                        @unless ($calendarAccountEmailAuthorized && $calendarConnection->google_account_email)
+                            <p class="mt-1 text-xs text-amber-800">Reconnect to share the connected Google account email with Wasaa.</p>
+                        @endunless
+                    </div>
+                    @if (! $calendarTasksAuthorized || ! $calendarAccountEmailAuthorized || ! $calendarConnection->google_account_email)
+                        <a href="{{ route('settings.google-calendar.connect') }}" class="rounded-md bg-brand px-4 py-2 text-sm font-semibold hover:bg-brand-dark">Reconnect Google Calendar</a>
+                    @endif
                     <form method="POST" action="{{ route('settings.google-calendar.disconnect') }}">
                         @csrf
                         @method('DELETE')
@@ -123,32 +137,60 @@
 
             <section class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
                 <h2 class="mb-1 text-sm font-semibold text-gray-700">Weekly Availability Windows</h2>
-                <p class="mb-4 text-xs text-gray-500">Configure when Wasaa may schedule tasks for you.</p>
+                <p class="mb-4 text-xs text-gray-500">Choose the times you are usually free. Add more than one range on a day if you need a break between them.</p>
 
-                <table class="w-full text-left text-sm">
-                    <thead class="text-xs uppercase text-gray-500">
-                        <tr>
-                            <th class="py-1"></th>
-                            <th class="py-1">Morning <span class="font-normal normal-case">(06:00–11:00)</span></th>
-                            <th class="py-1">Afternoon <span class="font-normal normal-case">(12:00–17:00)</span></th>
-                            <th class="py-1">Evening <span class="font-normal normal-case">(18:00–23:00)</span></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($labels as $day => $label)
-                            <tr>
-                                <td class="py-1 font-medium">{{ $label }}</td>
-                                @foreach (['morning', 'afternoon', 'evening'] as $period)
-                                    <td class="py-1">
-                                        <input type="checkbox" name="availability[{{ $day }}][{{ $period }}]" value="1"
-                                               @checked(old("availability.$day.$period", $preferences->availability[$day][$period]))
-                                               class="rounded border-gray-300 text-brand focus:ring-brand">
-                                    </td>
-                                @endforeach
-                            </tr>
+                <div class="mb-5 max-w-md">
+                    @php
+                        $selectedTimezone = old('timezone', auth()->user()->timezone ?? 'Africa/Nairobi');
+                        $timezoneOptions = config('timezones.common', []);
+                        if (in_array($selectedTimezone, timezone_identifiers_list(), true) && ! in_array($selectedTimezone, $timezoneOptions, true)) {
+                            $timezoneOptions[] = $selectedTimezone;
+                        }
+                    @endphp
+                    <label for="timezone" class="block text-xs font-medium text-gray-700">Your time zone</label>
+                    <select id="timezone" name="timezone" required class="mt-1 w-full rounded-md border-gray-300 text-sm">
+                        @foreach ($timezoneOptions as $timezoneOption)
+                            <option value="{{ $timezoneOption }}" @selected($selectedTimezone === $timezoneOption)>{{ str_replace('_', ' ', $timezoneOption) }}</option>
                         @endforeach
-                    </tbody>
-                </table>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Availability, schedules, and recommendations use this time zone.</p>
+                    @error('timezone') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+
+                <div class="grid gap-3 sm:grid-cols-2">
+                    @foreach ($labels as $day => $label)
+                        @php($dayRanges = old("availability.$day", $preferences->availability[$day] ?? []))
+                        <section class="rounded-xl border border-gray-200 p-3" aria-labelledby="availability-{{ $day }}-label">
+                            <h3 id="availability-{{ $day }}-label" class="mb-2 text-sm font-semibold text-gray-800">{{ $label }}</h3>
+                            <div class="space-y-2" data-availability-ranges="{{ $day }}">
+                                @foreach ($dayRanges as $index => $range)
+                                    <div class="flex flex-wrap items-end gap-2" data-availability-range>
+                                        <div>
+                                            <label class="block text-[11px] text-gray-600" for="availability-{{ $day }}-{{ $index }}-start">From</label>
+                                            <input id="availability-{{ $day }}-{{ $index }}-start" type="time" step="900" required name="availability[{{ $day }}][{{ $index }}][start]" value="{{ $range['start'] ?? '' }}" class="rounded-md border-gray-300 text-sm">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[11px] text-gray-600" for="availability-{{ $day }}-{{ $index }}-end">To</label>
+                                            <input id="availability-{{ $day }}-{{ $index }}-end" type="time" step="900" required name="availability[{{ $day }}][{{ $index }}][end]" value="{{ $range['end'] ?? '' }}" class="rounded-md border-gray-300 text-sm">
+                                        </div>
+                                        <button type="button" data-remove-availability-range class="rounded-md px-2 py-2 text-xs font-medium text-gray-600 hover:bg-gray-100">Remove</button>
+                                    </div>
+                                    @foreach ($errors->get("availability.$day.$index.start") as $message)<p class="text-xs text-red-600">{{ $message }}</p>@endforeach
+                                    @foreach ($errors->get("availability.$day.$index.end") as $message)<p class="text-xs text-red-600">{{ $message }}</p>@endforeach
+                                @endforeach
+                            </div>
+                            @if (count($dayRanges) === 0)<p class="mt-2 text-xs text-gray-500" data-no-availability>No available hours set.</p>@endif
+                            <button type="button" data-add-availability-range="{{ $day }}" class="mt-2 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Add time range</button>
+                        </section>
+                    @endforeach
+                </div>
+                <template data-availability-range-template>
+                    <div class="flex flex-wrap items-end gap-2" data-availability-range>
+                        <div><label class="block text-[11px] text-gray-600">From</label><input type="time" step="900" required data-range-start class="rounded-md border-gray-300 text-sm"></div>
+                        <div><label class="block text-[11px] text-gray-600">To</label><input type="time" step="900" required data-range-end class="rounded-md border-gray-300 text-sm"></div>
+                        <button type="button" data-remove-availability-range class="rounded-md px-2 py-2 text-xs font-medium text-gray-600 hover:bg-gray-100">Remove</button>
+                    </div>
+                </template>
             </section>
 
             <section class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -183,16 +225,25 @@
                     <label class="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white p-3">
                         <span>
                             <span class="block text-sm font-medium">Personalize time recommendations</span>
-                            <span class="block text-xs leading-5 text-gray-500">Use your completed and missed activity and schedule outcomes from the past year to adjust your recommendations. This history is used for your recommendations and is not pooled with other users. Turn this off at any time; general recommendations will still be available.</span>
+                            <span class="block text-xs leading-5 text-gray-500">Use your completed and missed activity and schedule outcomes from the past year for recommendations just for you. After enough history is available, Wasaa tests a personal model against the general model and uses it only if it performs better. Until then, your history adjusts the general recommendations. Turn this off at any time.</span>
                         </span>
                         <input type="checkbox" name="personalize_recommendations" value="1"
                                @checked(old('personalize_recommendations', $preferences->personalizeRecommendations))
                                class="h-5 w-9 rounded-full border-gray-300 text-brand focus:ring-brand">
                     </label>
 
+                    <label class="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white p-3">
+                        <span>
+                            <span class="block text-sm font-medium">Help improve recommendations for everyone</span>
+                            <span class="block text-xs leading-5 text-gray-500">Share anonymized counts of completed and missed outcomes by activity type, weekday, and hour to help improve the shared model. Your name, activity titles, and calendar details are not shared. You can turn this off at any time.</span>
+                        </span>
+                        <input type="checkbox" name="contribute_shared_recommendations" value="1"
+                               @checked(old('contribute_shared_recommendations', $settingsUser->shared_recommendation_consent_at !== null))
+                               class="h-5 w-9 rounded-full border-gray-300 text-brand focus:ring-brand">
+                    </label>
+
                     @foreach ([
                         'notify_conflicts' => ['Schedule Conflict Alerts', 'Notify when double-booking happens', $preferences->notifyConflicts],
-                        'notify_daily_summary' => ['Daily Schedule Summary', 'Send morning email preview of the day', $preferences->notifyDailySummary],
                         'notify_recommendations' => ['Recommendation Alerts', 'When optimal slot improvements are found', $preferences->notifyRecommendations],
                     ] as $name => [$title, $description, $current])
                         <label class="flex items-center justify-between gap-4">
@@ -237,4 +288,44 @@
             </form>
         </details>
     </div>
+<script>
+    (() => {
+        const template = document.querySelector('[data-availability-range-template]');
+        if (!template) return;
+
+        document.querySelectorAll('[data-add-availability-range]').forEach(button => {
+            button.addEventListener('click', () => {
+                const day = button.dataset.addAvailabilityRange;
+                const list = document.querySelector(`[data-availability-ranges="${day}"]`);
+                const indexes = [...list.querySelectorAll('[name]')].map(input => Number(input.name.match(/\[(\d+)\]/)?.[1] ?? -1));
+                const next = Math.max(-1, ...indexes) + 1;
+                const row = template.content.firstElementChild.cloneNode(true);
+                const start = row.querySelector('[data-range-start]');
+                const end = row.querySelector('[data-range-end]');
+                start.name = `availability[${day}][${next}][start]`;
+                start.id = `availability-${day}-${next}-start`;
+                start.previousElementSibling.htmlFor = start.id;
+                end.name = `availability[${day}][${next}][end]`;
+                end.id = `availability-${day}-${next}-end`;
+                end.previousElementSibling.htmlFor = end.id;
+                list.append(row);
+                list.parentElement.querySelector('[data-no-availability]')?.remove();
+            });
+        });
+
+        document.addEventListener('click', event => {
+            const button = event.target.closest('[data-remove-availability-range]');
+            if (!button) return;
+            const list = button.closest('[data-availability-ranges]');
+            button.closest('[data-availability-range]').remove();
+            if (!list.querySelector('[data-availability-range]')) {
+                const message = document.createElement('p');
+                message.className = 'mt-2 text-xs text-gray-500';
+                message.dataset.noAvailability = '';
+                message.textContent = 'No available hours set.';
+                list.after(message);
+            }
+        });
+    })();
+</script>
 </x-layouts.app>

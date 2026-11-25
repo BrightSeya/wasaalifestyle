@@ -26,10 +26,12 @@ MODEL_CARD_PATH = ROOT / "models" / "model_card.json"
 sys.path.append(str(ROOT / "src"))
 from atus_category_map import CATEGORIES  # noqa: E402
 from candidates import REQUEST_FIELDS, top_k_hours  # noqa: E402
+from personalization import fit_personal_model, personal_model_features  # noqa: E402
 import train  # noqa: E402
 
 TOP_K = 3
 DEFAULT_SUITABILITY_THRESHOLD = 0.5
+MAX_PERSONAL_HISTORY = 2000
 suitability_threshold = DEFAULT_SUITABILITY_THRESHOLD
 
 
@@ -117,6 +119,48 @@ def validate_user_feedback(feedback):
     return None
 
 
+def validate_personal_history(history):
+    """Validate the current user's labeled examples before fitting an isolated model."""
+    if history is None:
+        return None
+    if not isinstance(history, list) or len(history) > MAX_PERSONAL_HISTORY:
+        return f"personal_history must be a list of at most {MAX_PERSONAL_HISTORY} outcomes."
+
+    fields = {
+        "category", "day_of_week", "hour", "duration_min", "schedule_density",
+        "gap_since_last_same_category_hrs", "label", "weight", "occurred_at",
+    }
+    for example in history:
+        if not isinstance(example, dict) or set(example) != fields:
+            return "personal_history contains unsupported outcome fields."
+        if example["category"] not in CATEGORIES:
+            return "personal_history contains an unsupported category."
+        for field, minimum, maximum in (
+            ("day_of_week", 0, 6),
+            ("hour", 0, 23),
+            ("duration_min", 1, 1440),
+            ("schedule_density", 0, 10000),
+            ("gap_since_last_same_category_hrs", 0, 87600),
+            ("label", 0, 1),
+            ("occurred_at", 1, 4102444800),
+        ):
+            value = example[field]
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return f"personal_history {field} values must be numbers."
+            if not math.isfinite(value) or value < minimum or value > maximum:
+                return f"personal_history {field} values are outside the supported range."
+            if field in {"day_of_week", "hour", "duration_min", "schedule_density", "label", "occurred_at"} and not isinstance(value, int):
+                return f"personal_history {field} values must be integers."
+
+        weight = example["weight"]
+        if isinstance(weight, bool) or not isinstance(weight, (int, float)) or not math.isfinite(weight):
+            return "personal_history weights must be finite numbers."
+        if not 0 < weight <= 1:
+            return "personal_history weights must be greater than 0 and at most 1."
+
+    return None
+
+
 def validate_excluded_hours(hours):
     if hours is None:
         return None
@@ -155,6 +199,12 @@ def predict():
     if error:
         return jsonify({"error": error}), 400
 
+    personal_history = data.get("personal_history", [])
+    error = validate_personal_history(personal_history)
+    if error:
+        return jsonify({"error": error}), 400
+    personal_history = personal_history or []
+
     excluded_hours = data.get("exclude_hours", [])
     error = validate_excluded_hours(excluded_hours)
     if error:
@@ -169,13 +219,31 @@ def predict():
     if not available_hours:
         return jsonify({"error": "No available time window is long enough for this activity on this day. Update availability or reduce the activity duration."}), 422
 
+    requested_top_k = data.get("top_k", TOP_K)
+    if not isinstance(requested_top_k, int) or isinstance(requested_top_k, bool) or not 1 <= requested_top_k <= 24:
+        return jsonify({"error": "top_k must be an integer from 1 to 24."}), 400
+
     request_body = {field: data[field] for field in REQUEST_FIELDS}
-    score_fn = lambda df: active_model.predict_proba(df)[:, 1]  # noqa: E731
+    personal_model, personal_model_status = fit_personal_model(
+        personal_history,
+        active_lookup,
+        active_model,
+    )
+    if personal_model is not None:
+        score_fn = lambda df: personal_model.predict_proba(personal_model_features(df))[:, 1]  # noqa: E731
+        user_feedback = {}
+        prediction_threshold = personal_model_status["decision_threshold"]
+        prediction_basis = "per_user_model"
+    else:
+        score_fn = lambda df: active_model.predict_proba(df)[:, 1]  # noqa: E731
+        prediction_threshold = active_threshold
+        prediction_basis = "atus_prior_plus_user_history" if user_feedback else "atus_cold_start"
+
     top = top_k_hours(
         request_body,
         active_lookup,
         score_fn,
-        k=TOP_K,
+        k=requested_top_k,
         user_feedback=user_feedback,
         excluded_hours=excluded_hours,
         available_hours=available_hours,
@@ -186,7 +254,7 @@ def predict():
         {
             "hour": int(row["hour"]),
             "confidence": round(float(row["score"]), 4),
-            "suitable": bool(row["score"] >= active_threshold),
+            "suitable": bool(row["score"] >= prediction_threshold),
         }
         for row in top
     ]
@@ -194,7 +262,8 @@ def predict():
     return jsonify({
         "category": data["category"],
         "day_of_week": data["day_of_week"],
-        "prediction_basis": "atus_prior_plus_user_history" if user_feedback else "atus_cold_start",
+        "prediction_basis": prediction_basis,
+        "personal_model_status": personal_model_status["status"],
         "recommendations": recommendations,
     })
 

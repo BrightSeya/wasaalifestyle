@@ -32,7 +32,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'profile_photo_path',
         'password',
         'preferences',
+        'timezone',
         'recommendation_personalization_consent_at',
+        'shared_recommendation_consent_at',
     ];
 
     /**
@@ -58,6 +60,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
             'preferences' => 'array',
             'recommendation_personalization_consent_at' => 'datetime',
+            'shared_recommendation_consent_at' => 'datetime',
             'session_version' => 'integer',
         ];
     }

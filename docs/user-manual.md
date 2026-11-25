@@ -36,12 +36,12 @@ The **Dashboard** gives you a short view of the next seven days, pending recomme
 Activities are the routines you want to keep track of and use for scheduling suggestions.
 
 1. Open **Activities** and select **Add activity**.
-2. Enter an **Activity Name**, **Category**, **Preferred Time**, **Frequency (times per week)**, and **Duration (minutes)**. Save the activity.
-3. To change or remove an activity, select its name in the list. Select **Save Changes** to keep edits, or **Delete activity** to remove it and its history.
-4. In the **Log Today** column, select **Done**, **Missed**, or **Skip** for each activity. The most recently selected status is the status recorded for today.
-5. Select **Get recommendation** beside an activity to request suggested schedule times. Open **Recommendations** to review them.
+2. Enter an **Activity Name**, **Category**, **Preferred Time**, **Frequency (times per week)**, and **Duration (minutes)**. Select **Generate weekly recommendations** to get suggested days and up to three suitable times for each session.
+3. Choose a recommended time for every session. You can ask for more times for a day or change the day and get recommendations for that day. Each weekly session must use a different day. Save the activity and plan together.
+4. The saved plan repeats weekly for up to one year. To change it, select the activity name or **Edit weekly plan**. Change any session's day or time, request alternatives, then save. Removing the activity removes its linked routine entries and history.
+5. In the **Log Today** column, select **Done**, **Missed**, or **Skip** for each activity. The most recently selected status is the status recorded for today.
 
-The activity list also shows preferred time, frequency, duration, streak, and recent history. Its chart summarizes activity completion over the past seven days.
+The activity list shows each saved weekly day and time, frequency, duration, streak, and recent history. Its chart summarizes activity completion over the past seven days.
 
 ## Schedule
 
@@ -51,24 +51,25 @@ To add a task, select **New task** or **Add to my week** and enter:
 
 - **Task Title**, **Date**, **Start Time**, and **End Time**
 - **Category** and **Priority**
-- **Recurrence**: None, Daily, or Weekly
+- **Recurrence**: Choose **None** for a one-time task, **Daily** to repeat every day, or **Weekly** to choose a weekday and repeat from its first occurrence on or after the start date. A repeating task must end within one year of its first occurrence, either **On a date** or **After a number of occurrences**. The occurrence count includes the first one.
 - An optional **Description**
 
 Select **Save Task**. To edit an entry, select it and use **Save Changes**. Use **Delete entry** on the edit page to remove it.
 
 ### Schedule conflicts
 
-Wasaa checks a new or changed time against your existing one-off and recurring entries. If it finds an overlap, the page lists the conflicting entries. Adjust the date or time and save again, or submit again to save despite the conflict. Confirm only when you intend to keep both entries. A confirmed conflict can also create an alert in **Notifications**.
+Wasaa checks a new task against your existing schedule. Recommendations for repeating tasks must fit your availability and avoid clashes throughout the selected repeat period. If a one-time event conflicts with one activity occurrence, Wasaa saves the rest of the weekly routine and skips that occurrence. A clash that repeats across multiple dates must be resolved by choosing another time or day. Existing repeating tasks created without an end date remain scheduled; editing one requires choosing a finite end. New events added later are checked against repeating tasks when they are saved.
 
 ## Recommendations
 
-Open **Recommendations** to review pending suggested times. Each suggestion shows the activity, proposed date and time, and a confidence score.
+Open **Recommendations** to review upcoming task and lifestyle activity times. Each suggestion names the scheduled item and shows its current date and time, proposed date and time, reason, and confidence score.
 
-- Select **Accept suggestion** to add the suggested time to your schedule.
+- Select **Apply recommended change** to move the item. Wasaa shows a success message with the item and its old and new times.
+- For a repeating entry, only the selected occurrence changes; the other occurrences remain scheduled. The replacement for a lifestyle activity remains linked to that activity and is used as that day's planned time when logging it.
 - Select **Dismiss** to remove a suggestion you do not want.
-- If the suggestion overlaps your schedule, review the warning. Change your schedule if needed, or select **Confirm anyway** to accept the overlap intentionally.
+- If the proposed time overlaps your schedule, review the conflict warning. Change your schedule if needed, or select **Apply anyway** to accept the overlap intentionally.
 
-Use **Activities** for repeatable routines such as exercise or studying. Select **Get recommendation** to see a plan for the next seven days based on the activity's weekly frequency. Wasaa chooses that many separate days where possible and shows up to three time options, each with a confidence score, for every chosen day. Choose one time for each day you want to add to your schedule. A frequency of one produces one recommended day; a one-off event belongs in **Schedule** instead.
+Use **Activities** for repeatable routines such as exercise or studying. During setup or editing, Wasaa recommends a plan for the next seven days based on the activity's weekly frequency. It chooses separate days where possible and shows up to three time options, each with a confidence score, for every session. Saving the activity schedules all chosen sessions as a weekly routine for up to one year. A one-off event belongs in **Schedule** instead.
 
 For a one-off task on a particular day, open **Schedule** and choose **New task**. Expand **Looking for a time on a specific date?** at the bottom of the time guide, choose a date in the calendar, and select **Find times for this date**. The chosen date is copied into **Task details**. Wasaa finds times for that date using its weekday availability, the task duration, and schedule conflicts. Pick a suggested time to update the form, review it, and save.
 
@@ -90,10 +91,11 @@ Open **Change password**, enter your current password, enter a new password, and
 
 ### Availability and preferences
 
-- Under **Weekly Availability Windows**, choose the morning, afternoon, and evening periods when Wasaa may schedule tasks for each day.
-- Under **Productivity Preferences**, set your peak start and end hours and preferred break duration. Recommendations exclude disabled availability periods and rank available times inside your peak hours first. Availability periods correspond to 06:00–11:00, 12:00–17:00, and 18:00–23:00; if none are selected for a day, enable one to receive recommendations for that day.
-- Under **Notification Alerts**, choose whether to receive schedule conflict, daily summary, and recommendation alerts.
-- Select **Save preferences** to save these changes. Email alert delivery also depends on the website's email service being configured by its administrator.
+- Under **Weekly Availability Windows**, add one or more **From** and **To** time ranges for each day. You can remove every range on a day when you are unavailable. Ranges on the same day cannot overlap, and each range must end later than it starts.
+- Under **Productivity Preferences**, set your peak start and end hours and preferred break duration. Recommendations use available ranges, suggest starts every 30 minutes, and rank available times inside your peak hours first. A task must fit fully inside one available range.
+- Under **Notification Alerts**, turn on **Personalize time recommendations** to let Wasaa use your completed and missed outcomes for your recommendations. After at least 120 outcomes, it tests a model trained on your history and uses it only if it performs better than the general model. Otherwise, your history adjusts the general suggestions. Your outcomes are not pooled with other users; turning this setting off stops their use for recommendations.
+- Under **Notification Alerts**, choose whether to receive schedule conflict and recommendation alerts. Daily schedule summary emails are no longer offered.
+- Select **Save preferences** to save these changes.
 
 ### Dark mode
 
@@ -101,20 +103,20 @@ Use the theme button in the top bar to switch between light and dark mode. Your 
 
 ### Google Calendar
 
-The **Google Calendar** section shows whether a calendar is connected. Select **Connect Google Calendar** and follow Google's authorization steps. Wasaa requests read-only event access; it cannot edit your Google Calendar. Select **Disconnect Google Calendar** to remove the connection.
+The **Google Calendar** section shows whether Google Calendar and Tasks are connected. Select **Connect Google Calendar** and follow Google's authorization steps. Wasaa requests read-only access; it cannot change items in Google. Select **Disconnect Google Calendar** to remove the connection. If Settings asks you to reconnect for Tasks, use that link to grant the new read-only permission.
 
 If the page says the connection is not configured, contact the administrator. If Google revokes a connection, connect the calendar again in Settings.
 
-## Import Google Calendar events
+## Import Google Calendar events and tasks
 
 After connecting a calendar:
 
 1. Open **Schedule** and select **Import calendar**.
-2. Choose **From** and **Through** dates (up to 31 days) and a **Category for imported events**.
-3. Select **Review events**. Check the date range, duplicates, conflicts, and unsupported events before saving anything.
-4. Select **Confirm and import N event(s)** to import the listed supported events, or **Change date range** to go back.
+2. Choose **From** and **Through** dates (up to 31 days), then select **Review items**.
+3. On the review screen, choose a category for each new event or task. Check the date range, duplicates, conflicts, and unsupported items before saving anything.
+4. Select **Confirm and import N item(s)** to import the listed supported items, or **Change date range** to go back.
 
-Wasaa skips events already imported. All-day events and timed events that cross into another local calendar day are listed as unsupported. If your Wasaa schedule changes while the review is open, review the updated conflict summary before confirming again. Imported events do not change your Google Calendar.
+Wasaa imports Calendar events and Google Tasks with due dates in the selected range. Untimed tasks and all-day events display as all-day entries; timed events spanning dates appear on each affected day. Wasaa skips already imported items. If your Wasaa schedule changes while the review is open, review the updated conflict summary before confirming again. Imports do not change your Google account. The administrator must enable the Google Tasks API, and existing Google connections may need to be reauthorized to grant read-only Tasks access.
 
 For technical connection setup, see [Google Calendar OAuth and import](google-calendar-oauth.md).
 
@@ -132,9 +134,9 @@ To proceed, open **Delete account**, type `DELETE`, enter your current password,
 | Forgot your password | Choose **Forgot password?** on the login page and check the inbox for the address you submitted, including the spam folder. Reset links expire; request another link if needed. |
 | Verification or notification email is missing | Check spam, use **Resend verification email** when available, and contact the administrator if it still does not arrive. Email delivery depends on server configuration. |
 | A task overlaps another entry | Review the listed conflict, change the time, or submit again only if you intend to keep the overlap. |
-| No recommendations appear | Open **Activities** and select **Get recommendation**. If recommendations are temporarily unavailable, try later or schedule manually. |
+| No activity times are recommended | Check the activity's duration and **Weekly Availability Windows** in Settings. If the recommendation service is temporarily unavailable, try again later or choose a time manually within your availability. |
 | Calendar connection is unavailable | Contact the administrator if Settings says it is not configured. If a connection was revoked, reconnect it from Settings. |
-| Calendar events are missing from the preview | Check the selected date range and the unsupported-events list. All-day and cross-day timed events are not imported. Use a shorter date range if the preview reports more than 500 events. |
+| Calendar items are missing from the preview | Check the selected date range. Tasks must have a due date in that range. If tasks are missing, reconnect Google in Settings and ask the administrator to confirm the Google Tasks API is enabled. Use a shorter date range if the preview reports more than 500 items. |
 | Profile photo is rejected | Use a JPG, PNG, or WebP file no larger than 2 MB. |
 | You cannot access your schedule after registration | Complete email verification first. Use **Resend verification email** if needed. |
 

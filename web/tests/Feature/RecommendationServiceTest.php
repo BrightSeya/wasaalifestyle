@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Activity;
 use App\Models\ActivityLog;
 use App\Models\Schedule;
+use App\Models\ScheduleOccurrenceOutcome;
 use App\Models\User;
 use App\Services\RecommendationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -47,7 +48,8 @@ class RecommendationServiceTest extends TestCase
                 && $request['category'] === 'exercise'
                 && $request['day_of_week'] === 0
                 && $request['duration_min'] === 45
-                && $request['gap_since_last_same_category_hrs'] === 24.0;
+                && $request['gap_since_last_same_category_hrs'] === 24.0
+                && ! isset($request['personal_history']);
         });
     }
 
@@ -136,6 +138,7 @@ class RecommendationServiceTest extends TestCase
 
         Http::assertSent(function ($request) {
             $feedback = $request['user_feedback'];
+            $history = $request['personal_history'];
 
             return array_keys($feedback) === ['1:10']
                 && $feedback['1:10']['category_total'] > 1.9
@@ -144,7 +147,67 @@ class RecommendationServiceTest extends TestCase
                 && $feedback['1:10']['category_completed'] < 1.0
                 && $feedback['1:10']['other_total'] > 0.9
                 && $feedback['1:10']['other_total'] < 1.0
-                && $feedback['1:10']['other_completed'] === $feedback['1:10']['other_total'];
+                && $feedback['1:10']['other_completed'] === $feedback['1:10']['other_total']
+                && count($history) === 3
+                && array_column($history, 'category') === ['work', 'exercise', 'exercise']
+                && array_column($history, 'label') === [1, 1, 0]
+                && $history[0]['schedule_density'] === 2
+                && $history[1]['gap_since_last_same_category_hrs'] === 24.0
+                && $history[2]['gap_since_last_same_category_hrs'] === 0.25
+                && array_keys($history[0]) === [
+                    'category',
+                    'day_of_week',
+                    'hour',
+                    'duration_min',
+                    'schedule_density',
+                    'gap_since_last_same_category_hrs',
+                    'label',
+                    'weight',
+                    'occurred_at',
+                ];
+        });
+    }
+
+    public function test_schedule_occurrence_outcomes_are_sent_as_personal_training_examples(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-16 12:00:00'));
+        Http::fake(['*/predict' => Http::response(['recommendations' => []])]);
+
+        $user = User::factory()->create(['preferences' => ['personalize_recommendations' => true]]);
+        $activity = Activity::factory()->for($user)->create(['category' => 'exercise']);
+        $schedule = Schedule::factory()->for($user)->create([
+            'category' => 'work',
+            'start_datetime' => Carbon::parse('2026-11-10 08:00:00'),
+            'end_datetime' => Carbon::parse('2026-11-10 09:00:00'),
+        ]);
+        ScheduleOccurrenceOutcome::create([
+            'schedule_id' => $schedule->id,
+            'occurrence_start' => Carbon::parse('2026-11-10 08:00:00'),
+            'occurrence_end' => Carbon::parse('2026-11-10 09:00:00'),
+            'outcome' => 'completed',
+            'recorded_at' => Carbon::parse('2026-11-10 09:05:00'),
+        ]);
+
+        $this->service()->recommend($user, $activity);
+
+        Http::assertSent(function ($request) {
+            if (count($request['personal_history']) !== 1) {
+                return false;
+            }
+            $example = $request['personal_history'][0];
+            $weight = $example['weight'];
+            unset($example['weight']);
+
+            return $example === [
+                'category' => 'work',
+                'day_of_week' => 1,
+                'hour' => 8,
+                'duration_min' => 60,
+                'schedule_density' => 0,
+                'gap_since_last_same_category_hrs' => 24.0,
+                'label' => 1,
+                'occurred_at' => Carbon::parse('2026-11-10 08:00:00')->getTimestamp(),
+            ] && $weight > 0 && $weight <= 1;
         });
     }
 

@@ -70,6 +70,7 @@ Route::middleware(['auth', 'account.active', 'verified'])->group(function () {
     Route::resource('schedules', ScheduleController::class)->except('show');
     Route::resource('activities', ActivityController::class)->except('show');
     Route::post('/activities/{activity}/log', [ActivityController::class, 'log'])->name('activities.log');
+    Route::post('/activities/weekly-plan/recommendations', [RecommendationController::class, 'previewActivityPlan'])->name('activities.weekly-plan.preview');
 
     Route::get('/settings', [ProfileController::class, 'edit'])->name('settings.edit');
     Route::put('/settings/profile', [ProfileController::class, 'update'])->name('settings.profile');

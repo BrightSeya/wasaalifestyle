@@ -22,10 +22,13 @@
                     <div @class(['px-4 py-3 hover:bg-gray-50', 'opacity-60' => $entry->outcome === 'cancelled'])>
                         <a href="{{ route('schedules.edit', $entry->schedule) }}" class="flex items-center gap-4">
                             <span class="w-36 shrink-0 text-sm text-gray-500">
-                                {{ $entry->start->format('g:i A') }} - {{ $entry->end->format('g:i A') }}
+                                {{ $entry->schedule->is_all_day ? 'All day' : $entry->start->format('g:i A').' - '.$entry->end->format('g:i A') }}
                                 @if ($entry->schedule->timezone)<span class="block text-[10px]">Google source zone: {{ $entry->schedule->timezone }}</span>@endif
                             </span>
                             <span class="flex-1 font-medium">{{ $entry->schedule->title }}</span>
+                            @if ($entry->schedule->status === 'completed')
+                                <span class="rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">Completed</span>
+                            @endif
                             @if ($entry->outcome === 'cancelled')
                                 <span class="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">Cancelled</span>
                             @endif

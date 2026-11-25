@@ -1,7 +1,8 @@
 # Slot Recommender
 
-Random Forest service that predicts how suitable each hour of the day is for an activity
-category and returns the top-3 time slots. Developed with CRISP-DM.
+The population Random Forest predicts suitable hours for an activity category. For users
+who opt in and have enough outcomes, the service can use a separate personal model when it
+beats the population model on recent held-out outcomes. Developed with CRISP-DM.
 
 ## Structure
 
@@ -80,17 +81,32 @@ On success, the endpoint reruns the training pipeline, reloads the model, comple
 and validation-selected suitability threshold into the running process, and returns `cv_f1`,
 `best_params`, and `decision_threshold` from the model card.
 
-### Learning from Wasaa outcomes
+### Personal models from Wasaa outcomes
 
-When the user opts in during registration or in Settings, each recommendation request
-includes compact outcome counts for that user's weekday and hour, derived from the previous
-365 days of activity logs and schedule occurrence outcomes. Completed outcomes increase the
-personal suitability estimate; missed outcomes decrease it. Skipped and cancelled outcomes
-are omitted because they do not show that a time slot was unsuitable. Feedback decays with
-a 180-day half-life, and hierarchical shrinkage keeps sparse personal history close to the
-ATUS-trained cold-start model. The counts are sent only for the signed-in user and are not
-pooled across users. If the user declines or later turns personalization off, no outcome
-history is sent and standard ATUS-based recommendations remain available.
+When a user opts in during registration or in Settings, Laravel sends only that user's
+completed and missed activity-log and schedule-occurrence outcomes from the previous 365
+days. Skipped and cancelled outcomes are excluded. Each example includes its category,
+local weekday and hour, duration, observed schedule density, gap since the prior outcome in
+that category, result, and a recency weight with a 180-day half-life. The service caps the
+history at the 2,000 most recent examples. Personal training uses category, weekday, hour,
+duration, and the ATUS completion-rate prior; weekday and hour are encoded as cyclic values.
+The extra context fields let the population model be compared on the same personal outcomes.
+
+The service needs at least 120 outcomes, including at least 20 completed and 20 missed, to
+try a separate model for that user. It trains on earlier outcomes and holds out the most
+recent 20% (at least 30 outcomes). The held-out set must contain at least five outcomes of
+each type. Flask compares the personal model's recency-weighted Brier score with the
+population model on those same held-out outcomes and uses the personal model only when its
+score is lower. Its suitability cutoff is also selected from that user's held-out outcomes;
+the ATUS model's cutoff is not reused for personal scores. The selected model is fit on all
+of that user's examples for the current request; no per-user model or raw history is saved
+by Flask or shared with another user's request. If there is not enough history or the
+personal model does not beat the population model, Wasaa uses the population model plus its
+existing recency-weighted personal adjustment.
+
+Turning personalization off means no personal history is sent. The population model remains
+available. The separate `POST /retrain` endpoint continues to train only the population
+model from ATUS data.
 
 ### Evaluation threshold
 

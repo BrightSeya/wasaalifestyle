@@ -22,8 +22,10 @@ class ProfileController extends Controller
         $preferences = UserPreferences::fromArray($request->user()->preferences);
         $calendarConnection = $request->user()->googleCalendarConnection;
         $calendarConfigured = $googleCalendar->isConfigured();
+        $calendarTasksAuthorized = $googleCalendar->hasRequiredReadScopes($calendarConnection);
+        $calendarAccountEmailAuthorized = $googleCalendar->hasAccountEmailScope($calendarConnection);
 
-        return view('settings.edit', compact('preferences', 'calendarConnection', 'calendarConfigured'));
+        return view('settings.edit', compact('preferences', 'calendarConnection', 'calendarConfigured', 'calendarTasksAuthorized', 'calendarAccountEmailAuthorized'));
     }
 
     public function update(UpdateProfileRequest $request): RedirectResponse

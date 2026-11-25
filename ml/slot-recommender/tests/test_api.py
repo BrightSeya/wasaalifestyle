@@ -58,6 +58,44 @@ def test_predict_returns_three_ranked_recommendations(client):
         assert rec["suitable"] == (rec["confidence"] >= api.suitability_threshold)
 
 
+def test_predict_uses_a_qualified_personal_model(client, monkeypatch):
+    history = [{
+        "category": "exercise",
+        "day_of_week": 1,
+        "hour": 9,
+        "duration_min": 45,
+        "schedule_density": 1,
+        "gap_since_last_same_category_hrs": 24.0,
+        "label": 1,
+        "weight": 0.9,
+        "occurred_at": 1_700_000_000,
+    }]
+    captured = {}
+
+    class PersonalModel:
+        def predict_proba(self, features):
+            import numpy as np
+
+            positive = np.full(len(features), 0.3)
+            return np.column_stack((1 - positive, positive))
+
+    def fit_personal(history_arg, lookup, population_model):
+        captured["history"] = history_arg
+        return PersonalModel(), {"status": "active", "decision_threshold": 0.2}
+
+    monkeypatch.setattr(api, "fit_personal_model", fit_personal)
+    monkeypatch.setattr(api, "suitability_threshold", 0.9)
+
+    response = client.post("/predict", json=valid_body(personal_history=history))
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["prediction_basis"] == "per_user_model"
+    assert data["personal_model_status"] == "active"
+    assert all(recommendation["suitable"] for recommendation in data["recommendations"])
+    assert captured["history"] == history
+
+
 def test_predict_returns_503_when_the_model_is_not_loaded(client, monkeypatch):
     monkeypatch.setattr(api, "model", None)
 

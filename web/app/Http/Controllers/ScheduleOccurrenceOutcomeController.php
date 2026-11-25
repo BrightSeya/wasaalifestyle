@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Schedule;
 use App\Services\ScheduleOccurrences;
 use App\Support\Occurrence;
+use App\Support\UserTime;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -22,7 +23,7 @@ class ScheduleOccurrenceOutcomeController extends Controller
             'outcome' => ['required', Rule::in(['completed', 'missed', 'skipped', 'cancelled'])],
         ]);
 
-        $start = Carbon::parse($data['occurrence_start']);
+        $start = Carbon::parse($data['occurrence_start'], UserTime::timezone($request->user()));
         $dayStart = $start->copy()->startOfDay();
         $occurrence = $occurrences->between($request->user(), $dayStart, $dayStart->copy()->addDay())
             ->first(fn (Occurrence $candidate) => $candidate->schedule->is($schedule)
@@ -41,9 +42,9 @@ class ScheduleOccurrenceOutcomeController extends Controller
         }
 
         $schedule->occurrenceOutcomes()->updateOrCreate(
-            ['occurrence_start' => $occurrence->start],
+            ['occurrence_start' => UserTime::utc($request->user(), $occurrence->start)],
             [
-                'occurrence_end' => $occurrence->end,
+                'occurrence_end' => UserTime::utc($request->user(), $occurrence->end),
                 'outcome' => $data['outcome'],
                 'recorded_at' => now(),
             ],

@@ -7,11 +7,14 @@ use App\Exceptions\GoogleCalendarImportException;
 use App\Exceptions\GoogleCalendarReauthorizationRequired;
 use App\Exceptions\GoogleCalendarServiceUnavailable;
 use App\Services\GoogleCalendarImportService;
+use App\Services\GoogleCalendarOAuthService;
+use App\Support\UserTime;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -20,13 +23,15 @@ class GoogleCalendarImportController extends Controller
 {
     private const PREVIEW_SESSION_KEY = 'google_calendar_import_preview';
 
-    public function index(Request $request): View
+    public function index(Request $request, GoogleCalendarOAuthService $googleCalendar): View
     {
+        $connection = $request->user()->googleCalendarConnection;
+
         return view('schedules.google-calendar-import', [
-            'connected' => $request->user()->googleCalendarConnection()->exists(),
-            'dateFrom' => now()->toDateString(),
-            'dateTo' => now()->addDays(6)->toDateString(),
-            'categories' => Category::cases(),
+            'connected' => $connection !== null,
+            'tasksAuthorized' => $googleCalendar->hasRequiredReadScopes($connection),
+            'dateFrom' => now(UserTime::timezone($request->user()))->toDateString(),
+            'dateTo' => now(UserTime::timezone($request->user()))->addDays(6)->toDateString(),
         ]);
     }
 
@@ -35,17 +40,16 @@ class GoogleCalendarImportController extends Controller
         $validated = $request->validate([
             'date_from' => ['required', 'date_format:Y-m-d'],
             'date_to' => ['required', 'date_format:Y-m-d', 'after_or_equal:date_from'],
-            'category' => ['required', Rule::in(array_map(fn (Category $category) => $category->value, Category::cases()))],
         ]);
 
-        $from = Carbon::createFromFormat('!Y-m-d', $validated['date_from'], config('app.timezone'));
-        $to = Carbon::createFromFormat('!Y-m-d', $validated['date_to'], config('app.timezone'));
+        $from = Carbon::createFromFormat('!Y-m-d', $validated['date_from'], UserTime::timezone($request->user()));
+        $to = Carbon::createFromFormat('!Y-m-d', $validated['date_to'], UserTime::timezone($request->user()));
         if ($to->greaterThan($from->copy()->addDays(30))) {
             return back()->withInput()->withErrors(['date_to' => 'Choose a date range of 31 days or less.']);
         }
 
         if (! $request->user()->googleCalendarConnection()->exists()) {
-            return to_route('settings.edit')->with('calendar_error', 'Connect Google Calendar before importing events.');
+            return to_route('settings.edit')->with('calendar_error', 'Connect Google Calendar before importing items.');
         }
 
         try {
@@ -53,7 +57,6 @@ class GoogleCalendarImportController extends Controller
                 $request->user(),
                 $validated['date_from'],
                 $validated['date_to'],
-                $validated['category'],
             );
         } catch (GoogleCalendarReauthorizationRequired $exception) {
             return to_route('settings.edit')->with('calendar_error', $exception->getMessage());
@@ -68,6 +71,8 @@ class GoogleCalendarImportController extends Controller
 
         return view('schedules.google-calendar-preview', [
             'preview' => $preview,
+            'categories' => Category::cases(),
+            'selectedCategories' => [],
             'updatedSinceReview' => false,
         ]);
     }
@@ -101,8 +106,51 @@ class GoogleCalendarImportController extends Controller
         if (! $request->user()->googleCalendarConnection()->exists()) {
             $request->session()->forget(self::PREVIEW_SESSION_KEY);
 
-            return to_route('settings.edit')->with('calendar_error', 'Your Google Calendar connection was removed. Reconnect before importing these events.');
+            return to_route('settings.edit')->with('calendar_error', 'Your Google Calendar connection was removed. Reconnect before importing these items.');
         }
+
+        $validator = Validator::make($request->all(), [
+            'categories' => ['sometimes', 'array'],
+            'categories.*' => ['required', Rule::in(Category::values())],
+        ]);
+        $duplicateIds = array_fill_keys($preview['duplicate_ids'], true);
+        $expectedIndexes = [];
+        foreach ($preview['events'] as $index => $event) {
+            if (! isset($duplicateIds[$event['google_event_id']])) {
+                $expectedIndexes[] = (string) $index;
+            }
+        }
+        $validator->after(function ($validator) use ($request, $expectedIndexes): void {
+            $categories = $request->input('categories', []);
+            $submittedIndexes = is_array($categories) ? array_map('strval', array_keys($categories)) : [];
+            sort($submittedIndexes);
+            sort($expectedIndexes);
+            if ($submittedIndexes !== $expectedIndexes) {
+                $validator->errors()->add('categories', 'Choose a category for every new item before importing.');
+            }
+        });
+        if ($validator->fails()) {
+            $selectedCategories = $request->input('categories', []);
+            if (! is_array($selectedCategories)) {
+                $selectedCategories = [];
+            }
+
+            return view('schedules.google-calendar-preview', [
+                'preview' => $preview,
+                'categories' => Category::cases(),
+                'categoryErrors' => $validator->errors()->toArray(),
+                'selectedCategories' => $selectedCategories,
+                'updatedSinceReview' => false,
+            ]);
+        }
+
+        $categoryChoices = $validator->validated()['categories'] ?? [];
+        foreach ($preview['events'] as $index => &$event) {
+            if (isset($categoryChoices[$index])) {
+                $event['category'] = $categoryChoices[$index];
+            }
+        }
+        unset($event);
 
         try {
             $result = $importer->confirm($request->user(), $preview);
@@ -122,6 +170,8 @@ class GoogleCalendarImportController extends Controller
 
             return view('schedules.google-calendar-preview', [
                 'preview' => $preview,
+                'categories' => Category::cases(),
+                'selectedCategories' => $categoryChoices,
                 'updatedSinceReview' => true,
             ]);
         }
@@ -130,7 +180,7 @@ class GoogleCalendarImportController extends Controller
 
         return to_route('schedules.index')->with(
             'status',
-            "Imported {$result['imported_count']} event(s); skipped {$result['duplicate_count']} duplicate(s) and {$result['unsupported_count']} unsupported event(s).",
+            "Imported {$result['imported_count']} item(s); skipped {$result['duplicate_count']} duplicate(s) and {$result['unsupported_count']} unsupported item(s).",
         );
     }
 

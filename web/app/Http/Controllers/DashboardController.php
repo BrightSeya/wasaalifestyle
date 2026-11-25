@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Services\ScheduleOccurrences;
 use App\Support\ActivityStats;
+use App\Support\UserTime;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -14,7 +16,7 @@ class DashboardController extends Controller
     public function __invoke(Request $request, ScheduleOccurrences $occurrences): View
     {
         $user = $request->user();
-        $today = today();
+        $today = Carbon::now(UserTime::timezone($user))->startOfDay();
         $scheduleDays = collect(range(0, self::OVERVIEW_DAYS - 1))
             ->map(fn (int $offset) => $today->copy()->addDays($offset));
         $upcomingEntries = $occurrences->between(
@@ -24,9 +26,10 @@ class DashboardController extends Controller
         );
         $upcomingEntries = $upcomingEntries->reject(fn ($entry) => $entry->outcome === 'cancelled')->values();
         $recentLogs = $user->activityLogs()
-            ->where('scheduled_for', '>=', $today->copy()->subDays(self::OVERVIEW_DAYS - 1))
-            ->where('scheduled_for', '<', $today->copy()->addDay())
+            ->where('scheduled_for', '>=', UserTime::utc($user, $today->copy()->subDays(self::OVERVIEW_DAYS - 1)))
+            ->where('scheduled_for', '<', UserTime::utc($user, $today->copy()->addDay()))
             ->get();
+        $recentLogs->each(fn ($log) => $log->setAttribute('scheduled_for', UserTime::local($user, $log->scheduled_for)));
 
         return view('dashboard', [
             'scheduleDays' => $scheduleDays,

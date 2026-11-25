@@ -48,7 +48,7 @@ class GoogleCalendarConnectionController extends Controller
             return to_route('settings.edit')->with('calendar_error', 'Google Calendar could not complete the secure connection. Please try again.');
         }
 
-        return to_route('settings.edit')->with('status', 'Google Calendar connected with read-only event access.');
+        return to_route('settings.edit')->with('status', 'Google Calendar and Tasks connected with read-only access.');
     }
 
     public function disconnect(Request $request): RedirectResponse

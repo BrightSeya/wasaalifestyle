@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\UserPreferences;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -27,6 +28,13 @@ class ProfileSettingsTest extends TestCase
             ->assertSee('Bright Dev')
             ->assertSee('profile-photo-panel', false)
             ->assertSee('name="profile_photo"', false)
+            ->assertSee('<select id="timezone" name="timezone"', false)
+            ->assertDontSee('<input id="timezone"', false)
+            ->assertDontSee('<optgroup', false)
+            ->assertSee('value="Africa/Nairobi"', false)
+            ->assertSee('value="America/New_York"', false)
+            ->assertDontSee('value="Europe/Berlin"', false)
+            ->assertDontSee('value="Pacific/Wallis"', false)
             ->assertSee('value="9"', false)  // default peak start hour
             ->assertSee('value="17"', false) // default peak end hour
             ->assertSeeInOrder(['Change password', 'Google Calendar', 'Weekly Availability Windows', 'Delete account']);
@@ -36,6 +44,15 @@ class ProfileSettingsTest extends TestCase
         foreach ($disclosures[0] as $disclosure) {
             $this->assertDoesNotMatchRegularExpression('/\sopen(?:\s|>)/', $disclosure);
         }
+    }
+
+    public function test_existing_uncommon_timezone_remains_available(): void
+    {
+        $user = User::factory()->create(['timezone' => 'Pacific/Wallis']);
+
+        $this->actingAs($user)->get('/settings')
+            ->assertOk()
+            ->assertSee('value="Pacific/Wallis"', false);
     }
 
     public function test_user_can_update_name_and_email(): void
@@ -150,11 +167,12 @@ class ProfileSettingsTest extends TestCase
     private function validPreferences(array $overrides = []): array
     {
         return array_merge([
+            'timezone' => 'Africa/Nairobi',
             'peak_start_hour' => 8,
             'peak_end_hour' => 18,
             'preferred_break_minutes' => 20,
             'notify_conflicts' => '1',
-            'availability' => ['mon' => ['morning' => '1']],
+            'availability' => ['mon' => [['start' => '06:00', 'end' => '11:00']]],
         ], $overrides);
     }
 
@@ -167,24 +185,56 @@ class ProfileSettingsTest extends TestCase
             ->assertSessionHas('status', 'Preferences updated.');
 
         $preferences = $user->fresh()->preferences;
+        $this->assertSame('Africa/Nairobi', $user->fresh()->timezone);
         $this->assertSame(8, $preferences['peak_start_hour']);
         $this->assertSame(18, $preferences['peak_end_hour']);
         $this->assertSame(20, $preferences['preferred_break_minutes']);
         $this->assertTrue($preferences['notify_conflicts']);
-        $this->assertTrue($preferences['availability']['mon']['morning']);
+        $this->assertSame([['start' => '06:00', 'end' => '11:00']], $preferences['availability']['mon']);
     }
 
     public function test_unchecked_boxes_are_stored_as_false(): void
     {
         $user = User::factory()->create();
+        $user->preferences = ['notify_daily_summary' => true];
+        $user->save();
 
         $this->actingAs($user)->put('/settings/preferences', $this->validPreferences());
 
         $preferences = $user->fresh()->preferences;
-        $this->assertFalse($preferences['notify_daily_summary']);
+        $this->assertArrayNotHasKey('notify_daily_summary', $preferences);
         $this->assertFalse($preferences['notify_recommendations']);
-        $this->assertFalse($preferences['availability']['mon']['afternoon']);
-        $this->assertFalse($preferences['availability']['sun']['evening']);
+        $this->assertSame([['start' => '06:00', 'end' => '11:00']], $preferences['availability']['mon']);
+        $this->assertSame([], $preferences['availability']['sun']);
+    }
+
+    public function test_custom_availability_persists_for_the_user_who_saved_it(): void
+    {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create(['preferences' => UserPreferences::default()->toArray()]);
+
+        $this->actingAs($user)->put('/settings/preferences', [
+            'availability' => ['mon' => [1 => ['start' => '08:30', 'end' => '12:00']]],
+            'timezone' => 'Africa/Nairobi',
+            'peak_start_hour' => 8,
+            'peak_end_hour' => 18,
+            'preferred_break_minutes' => 20,
+            'personalize_recommendations' => '1',
+        ])->assertRedirect(route('settings.edit'))->assertSessionHas('status', 'Preferences updated.');
+
+        $this->assertSame([
+            ['start' => '08:30', 'end' => '12:00'],
+        ], $user->fresh()->preferences['availability']['mon']);
+        $this->assertNotNull($user->fresh()->recommendation_personalization_consent_at);
+        $this->assertSame(
+            UserPreferences::default()->availability,
+            UserPreferences::fromArray($otherUser->fresh()->preferences)->availability,
+        );
+
+        $this->actingAs($user)->get('/settings')
+            ->assertOk()
+            ->assertSee('value="08:30"', false)
+            ->assertSee('value="12:00"', false);
     }
 
     public function test_peak_end_hour_must_be_after_peak_start_hour(): void

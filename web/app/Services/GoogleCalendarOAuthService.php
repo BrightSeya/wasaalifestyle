@@ -13,9 +13,26 @@ class GoogleCalendarOAuthService
 {
     public const READONLY_EVENTS_SCOPE = 'https://www.googleapis.com/auth/calendar.events.readonly';
 
+    public const READONLY_TASKS_SCOPE = 'https://www.googleapis.com/auth/tasks.readonly';
+
+    public const ACCOUNT_EMAIL_SCOPE = 'https://www.googleapis.com/auth/userinfo.email';
+
+    public const REQUIRED_READONLY_SCOPES = [
+        self::READONLY_EVENTS_SCOPE,
+        self::READONLY_TASKS_SCOPE,
+    ];
+
+    private const AUTHORIZATION_SCOPES = [
+        self::READONLY_EVENTS_SCOPE,
+        self::READONLY_TASKS_SCOPE,
+        self::ACCOUNT_EMAIL_SCOPE,
+    ];
+
     private const AUTHORIZATION_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 
     private const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
+
+    private const USER_INFO_ENDPOINT = 'https://www.googleapis.com/oauth2/v2/userinfo';
 
     public function isConfigured(): bool
     {
@@ -30,7 +47,7 @@ class GoogleCalendarOAuthService
             'client_id' => config('services.google_calendar.client_id'),
             'redirect_uri' => config('services.google_calendar.redirect_uri'),
             'response_type' => 'code',
-            'scope' => self::READONLY_EVENTS_SCOPE,
+            'scope' => implode(' ', self::AUTHORIZATION_SCOPES),
             'access_type' => 'offline',
             'prompt' => 'consent',
             'state' => $state,
@@ -68,9 +85,8 @@ class GoogleCalendarOAuthService
         }
 
         $grantedScopes = preg_split('/\s+/', trim($tokens['scope'])) ?: [];
-        $calendarScopes = array_filter($grantedScopes, fn (string $scope) => str_starts_with($scope, 'https://www.googleapis.com/auth/calendar'));
-        if (! in_array(self::READONLY_EVENTS_SCOPE, $calendarScopes, true)
-            || array_diff($grantedScopes, [self::READONLY_EVENTS_SCOPE]) !== []) {
+        if (array_diff(self::AUTHORIZATION_SCOPES, $grantedScopes) !== []
+            || array_diff($grantedScopes, self::AUTHORIZATION_SCOPES) !== []) {
             return false;
         }
 
@@ -80,14 +96,53 @@ class GoogleCalendarOAuthService
             return false;
         }
 
+        try {
+            $userInfoResponse = Http::withToken($tokens['access_token'])
+                ->timeout(10)
+                ->get(self::USER_INFO_ENDPOINT);
+        } catch (ConnectionException) {
+            return false;
+        }
+
+        $userInfo = $userInfoResponse->successful() ? $userInfoResponse->json() : null;
+        $email = is_array($userInfo) ? ($userInfo['email'] ?? null) : null;
+        if (! is_string($email)
+            || filter_var($email, FILTER_VALIDATE_EMAIL) === false
+            || ($userInfo['verified_email'] ?? false) !== true) {
+            return false;
+        }
+
         $connection->fill([
+            'google_account_email' => $email,
             'access_token' => $tokens['access_token'],
             'refresh_token' => $refreshToken,
-            'scope' => self::READONLY_EVENTS_SCOPE,
+            'scope' => implode(' ', self::AUTHORIZATION_SCOPES),
             'expires_at' => now()->addSeconds((int) $tokens['expires_in']),
         ])->save();
 
         return true;
+    }
+
+    public function hasRequiredReadScopes(?GoogleCalendarConnection $connection): bool
+    {
+        if (! $connection) {
+            return false;
+        }
+
+        $grantedScopes = preg_split('/\s+/', trim($connection->scope)) ?: [];
+
+        return array_diff(self::REQUIRED_READONLY_SCOPES, $grantedScopes) === [];
+    }
+
+    public function hasAccountEmailScope(?GoogleCalendarConnection $connection): bool
+    {
+        if (! $connection) {
+            return false;
+        }
+
+        $grantedScopes = preg_split('/\s+/', trim($connection->scope)) ?: [];
+
+        return in_array(self::ACCOUNT_EMAIL_SCOPE, $grantedScopes, true);
     }
 
     public function validAccessToken(GoogleCalendarConnection $connection, bool $forceRefresh = false): string

@@ -50,7 +50,10 @@ class ScheduleManagementTest extends TestCase
     {
         $this->actingAs(User::factory()->create())->get('/schedules/create')
             ->assertOk()
-            ->assertSee('Create New Task');
+            ->assertSee('Create New Task')
+            ->assertSee('On a date')
+            ->assertSee('After a number of occurrences')
+            ->assertDontSee('<option value="never"', false);
     }
 
     public function test_user_can_create_an_entry(): void
@@ -73,15 +76,199 @@ class ScheduleManagementTest extends TestCase
         $this->assertSame('pending', $schedule->fresh()->status);
     }
 
+    public function test_schedule_times_are_stored_in_utc_and_shown_in_the_users_time_zone(): void
+    {
+        $user = User::factory()->create(['timezone' => 'Asia/Tokyo']);
+        $date = now()->addDay()->format('Y-m-d');
+
+        $this->actingAs($user)->post('/schedules', $this->validData([
+            'date' => $date,
+            'start_time' => '14:00',
+            'end_time' => '15:00',
+        ]))->assertRedirect(route('schedules.week', ['date' => $date]));
+
+        $schedule = $user->schedules()->sole();
+        $this->assertSame("{$date} 05:00", $schedule->start_datetime->format('Y-m-d H:i'));
+        $this->actingAs($user)->get(route('schedules.edit', $schedule))
+            ->assertOk()
+            ->assertSee('value="14:00"', false)
+            ->assertSee('value="15:00"', false);
+    }
+
     public function test_recurrence_is_stored(): void
     {
         $user = User::factory()->create();
 
-        $this->actingAs($user)->post('/schedules', $this->validData(['recurrence' => 'weekly']));
+        $this->actingAs($user)->post('/schedules', $this->validData([
+            'recurrence' => 'weekly',
+            'recurrence_ends' => 'after',
+            'recurrence_count' => 5,
+        ]));
 
         $schedule = $user->schedules()->sole();
         $this->assertTrue($schedule->is_recurring);
         $this->assertSame('weekly', $schedule->recurrence_rule);
+        $this->assertSame(5, $schedule->recurrence_count);
+    }
+
+    public function test_confirming_a_recurring_task_skips_only_the_conflicting_occurrence(): void
+    {
+        $user = User::factory()->create();
+        $firstDate = now()->addDays(2)->startOfDay();
+        $conflictingDate = $firstDate->copy()->addDay();
+        Schedule::factory()->for($user)->create([
+            'start_datetime' => $conflictingDate->copy()->setTime(14, 30),
+            'end_datetime' => $conflictingDate->copy()->setTime(15, 0),
+            'is_recurring' => false,
+            'recurrence_rule' => null,
+        ]);
+
+        $this->actingAs($user)->post('/schedules', $this->validData([
+            'date' => $firstDate->toDateString(),
+            'recurrence' => 'daily',
+            'recurrence_ends' => 'after',
+            'recurrence_count' => 3,
+        ]))->assertSessionHas('conflicts');
+
+        $this->actingAs($user)->post('/schedules', $this->validData([
+            'date' => $firstDate->toDateString(),
+            'recurrence' => 'daily',
+            'recurrence_ends' => 'after',
+            'recurrence_count' => 3,
+            'confirmed' => '1',
+        ]))->assertSessionHas('status', 'Entry created.');
+
+        $recurring = $user->schedules()->where('is_recurring', true)->sole();
+        $this->assertDatabaseHas('schedule_occurrence_outcomes', [
+            'schedule_id' => $recurring->id,
+            'occurrence_start' => $conflictingDate->copy()->setTime(14, 0)->format('Y-m-d H:i:s'),
+            'outcome' => 'cancelled',
+        ]);
+        $this->assertDatabaseCount('notifications', 0);
+    }
+
+    public function test_finite_recurring_task_rejects_a_clash_with_an_existing_infinite_pattern(): void
+    {
+        $user = User::factory()->create();
+        $firstDate = now()->addDays(2)->startOfDay();
+        Schedule::factory()->for($user)->create([
+            'start_datetime' => $firstDate->copy()->setTime(14, 30),
+            'end_datetime' => $firstDate->copy()->setTime(15, 0),
+            'is_recurring' => true,
+            'recurrence_rule' => 'weekly',
+        ]);
+
+        $this->actingAs($user)->post('/schedules', $this->validData([
+            'date' => $firstDate->toDateString(),
+            'recurrence' => 'daily',
+            'recurrence_ends' => 'after',
+            'recurrence_count' => 10,
+        ]))->assertSessionHasErrors('start_time');
+
+        $this->assertSame(1, $user->schedules()->count());
+    }
+
+    public function test_recurring_tasks_require_a_finite_end(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post('/schedules', $this->validData([
+            'recurrence' => 'daily',
+        ]))->assertSessionHasErrors('recurrence_ends');
+        $this->actingAs($user)->post('/schedules', $this->validData([
+            'recurrence' => 'daily',
+            'recurrence_ends' => 'never',
+        ]))->assertSessionHasErrors('recurrence_ends');
+
+        $this->assertSame(0, $user->schedules()->count());
+    }
+
+    public function test_recurring_task_end_date_and_occurrence_count_cannot_exceed_one_year(): void
+    {
+        $user = User::factory()->create();
+        $date = '2027-01-04';
+
+        $this->actingAs($user)->post('/schedules', $this->validData([
+            'date' => $date,
+            'recurrence' => 'daily',
+            'recurrence_ends' => 'on_date',
+            'recurrence_until' => '2028-01-05',
+        ]))->assertSessionHasErrors('recurrence_until');
+        $this->actingAs($user)->post('/schedules', $this->validData([
+            'date' => $date,
+            'recurrence' => 'daily',
+            'recurrence_ends' => 'after',
+            'recurrence_count' => 367,
+        ]))->assertSessionHasErrors('recurrence_count');
+        $this->actingAs($user)->post('/schedules', $this->validData([
+            'date' => $date,
+            'recurrence' => 'weekly',
+            'recurrence_weekday' => 1,
+            'recurrence_ends' => 'after',
+            'recurrence_count' => 54,
+        ]))->assertSessionHasErrors('recurrence_count');
+
+        $this->actingAs($user)->post('/schedules', $this->validData([
+            'date' => $date,
+            'recurrence' => 'daily',
+            'recurrence_ends' => 'on_date',
+            'recurrence_until' => '2028-01-04',
+        ]))->assertSessionHas('status', 'Entry created.');
+        $this->assertSame('2028-01-04', $user->schedules()->sole()->recurrence_end_date->toDateString());
+    }
+
+    public function test_editing_an_existing_unbounded_series_requires_choosing_a_finite_end(): void
+    {
+        $user = User::factory()->create();
+        $schedule = Schedule::factory()->for($user)->create([
+            'is_recurring' => true,
+            'recurrence_rule' => 'daily',
+            'recurrence_end_date' => null,
+            'recurrence_count' => null,
+        ]);
+
+        $this->actingAs($user)->get(route('schedules.edit', $schedule))
+            ->assertOk()
+            ->assertSee('Choose an end')
+            ->assertDontSee('<option value="never"', false);
+        $this->actingAs($user)->put(route('schedules.update', $schedule), $this->validData([
+            'recurrence' => 'daily',
+        ]))->assertSessionHasErrors('recurrence_ends');
+
+        $this->assertNull($schedule->fresh()->recurrence_count);
+        $this->assertNull($schedule->fresh()->recurrence_end_date);
+    }
+
+    public function test_adding_a_one_off_task_skips_only_the_conflicting_occurrence_of_a_never_series(): void
+    {
+        $user = User::factory()->create();
+        $date = now()->addDays(2)->startOfDay();
+        $series = Schedule::factory()->for($user)->create([
+            'start_datetime' => $date->copy()->setTime(14, 0),
+            'end_datetime' => $date->copy()->setTime(15, 0),
+            'is_recurring' => true,
+            'recurrence_rule' => 'weekly',
+        ]);
+
+        $this->actingAs($user)->post('/schedules', $this->validData([
+            'date' => $date->toDateString(),
+            'start_time' => '14:30',
+            'end_time' => '15:00',
+        ]))->assertSessionHas('conflicts');
+
+        $this->actingAs($user)->post('/schedules', $this->validData([
+            'date' => $date->toDateString(),
+            'start_time' => '14:30',
+            'end_time' => '15:00',
+            'confirmed' => '1',
+        ]))->assertSessionHas('status', 'Entry created.');
+
+        $this->assertDatabaseHas('schedule_occurrence_outcomes', [
+            'schedule_id' => $series->id,
+            'occurrence_start' => $date->copy()->setTime(14, 0)->format('Y-m-d H:i:s'),
+            'outcome' => 'cancelled',
+        ]);
+        $this->assertDatabaseCount('notifications', 0);
     }
 
     public function test_entry_cannot_be_created_for_another_user(): void

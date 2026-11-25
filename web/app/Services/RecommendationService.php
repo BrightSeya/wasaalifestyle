@@ -7,6 +7,7 @@ use App\Models\Activity;
 use App\Models\Schedule;
 use App\Models\User;
 use App\Support\UserPreferences;
+use App\Support\UserTime;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -21,14 +22,15 @@ class RecommendationService
     ) {}
 
     /**
-     * Ask the slot-recommender API for the top-3 suitable time slots for this activity,
+     * Ask the slot-recommender API to rank every available hour for this activity,
      * on the given day (defaults to today).
      *
      * @return array{ok: true, recommendations: array}|array{ok: false, message: string}
      */
     public function recommend(User $user, Activity $activity, ?Carbon $date = null, array $excludedHours = []): array
     {
-        $date = ($date ?? now())->copy();
+        $date = ($date ?? Carbon::now(UserTime::timezone($user)))->copy()->setTimezone(UserTime::timezone($user));
+
         return $this->recommendForDetails(
             $user,
             $activity->category,
@@ -51,6 +53,7 @@ class RecommendationService
             'schedule_density' => $this->scheduleDensity($user, $day),
             'gap_since_last_same_category_hrs' => $gapHours,
             'exclude_hours' => array_values(array_unique(array_map('intval', $excludedHours))),
+            'top_k' => 24,
             ...$this->preferenceHours($preferences, $day, $duration),
         ]);
     }
@@ -72,25 +75,24 @@ class RecommendationService
             'duration_min' => $duration,
             'schedule_density' => $this->scheduleDensity($user, $day),
             'gap_since_last_same_category_hrs' => self::DEFAULT_GAP_HOURS,
+            'top_k' => 24,
             ...$this->preferenceHours($preferences, $day, $duration),
         ]);
     }
 
-    /** Translate the user's day/period settings into hours the ranker can filter and prioritize. */
+    /** Translate custom availability ranges into hours containing at least one feasible half-hour start. */
     private function preferenceHours(UserPreferences $preferences, Carbon $day, int $duration): array
     {
         $dayKey = strtolower($day->format('D'));
-        $periods = ['morning' => [6, 11], 'afternoon' => [12, 17], 'evening' => [18, 23]];
         $available = [];
-        foreach ($periods as $period => [$startHour, $endHour]) {
-            if (! $preferences->availability[$dayKey][$period]) {
-                continue;
-            }
+        foreach ($preferences->availability[$dayKey] as $range) {
+            [$startHour, $startMinute] = array_map('intval', explode(':', $range['start']));
+            [$endHour, $endMinute] = array_map('intval', explode(':', $range['end']));
+            $start = ($startHour * 60) + $startMinute;
+            $end = ($endHour * 60) + $endMinute;
 
-            foreach (range($startHour, $endHour - 1) as $hour) {
-                if (($hour * 60) + $duration <= $endHour * 60) {
-                    $available[] = $hour;
-                }
+            for ($candidate = (int) (ceil($start / 30) * 30); $candidate + $duration <= $end; $candidate += 30) {
+                $available[] = intdiv($candidate, 60);
             }
         }
 
@@ -106,11 +108,13 @@ class RecommendationService
     private function requestRecommendations(User $user, array $payload): array
     {
         if (UserPreferences::fromArray($user->preferences)->personalizeRecommendations) {
-            $payload['user_feedback'] = $this->feedback->for(
+            $recommendationData = $this->feedback->recommendationData(
                 $user,
                 (string) $payload['category'],
-                now(),
+                Carbon::now(UserTime::timezone($user)),
             );
+            $payload['user_feedback'] = $recommendationData['user_feedback'];
+            $payload['personal_history'] = $recommendationData['personal_history'];
         }
 
         try {
@@ -145,7 +149,7 @@ class RecommendationService
         $lastLog = $user->activityLogs()
             ->whereHas('activity', fn ($query) => $query->where('category', $activity->category->value))
             ->where('status', 'completed')
-            ->where('scheduled_for', '<', $date)
+            ->where('scheduled_for', '<', UserTime::utc($user, $date))
             ->orderByDesc('scheduled_for')
             ->first();
 
@@ -153,6 +157,6 @@ class RecommendationService
             return self::DEFAULT_GAP_HOURS;
         }
 
-        return round($lastLog->scheduled_for->floatDiffInHours($date), 2);
+        return round(UserTime::local($user, $lastLog->scheduled_for)->floatDiffInHours($date), 2);
     }
 }

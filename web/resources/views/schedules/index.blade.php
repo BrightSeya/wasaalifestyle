@@ -12,13 +12,21 @@
     @else
         <ul class="divide-y divide-gray-100 rounded-2xl border border-gray-200 bg-white shadow-sm">
             @foreach ($schedules as $schedule)
+                @php
+                    $localStart = \App\Support\UserTime::local(auth()->user(), $schedule->start_datetime);
+                    $localEnd = \App\Support\UserTime::local(auth()->user(), $schedule->end_datetime);
+                @endphp
                 <li>
                     <a href="{{ route('schedules.edit', $schedule) }}" class="flex items-center justify-between gap-4 px-4 py-4 transition-colors hover:bg-gray-50">
                         <div>
                             <p class="font-medium">{{ $schedule->title }}</p>
                             <p class="text-xs text-gray-500">
-                                {{ $schedule->start_datetime->format('D, M j') }} &middot;
-                                {{ $schedule->start_datetime->format('g:i A') }} - {{ $schedule->end_datetime->format('g:i A') }}
+                                @if ($schedule->is_all_day)
+                                    All day &middot; {{ $localStart->format('D, M j') }}@if ($localEnd->copy()->subDay()->toDateString() !== $localStart->toDateString()) – {{ $localEnd->copy()->subDay()->format('D, M j') }}@endif
+                                @else
+                                    {{ $localStart->format('D, M j') }} &middot;
+                                    {{ $localStart->format('g:i A') }} - {{ $localEnd->format('g:i A') }}
+                                @endif
                                 @if ($schedule->timezone) &middot; Google Calendar source zone {{ $schedule->timezone }} @endif
                                 @if ($schedule->is_recurring) &middot; {{ ucfirst($schedule->recurrence_rule) }} @endif
                             </p>
@@ -26,6 +34,9 @@
                         <div class="flex shrink-0 gap-2 text-xs">
                             <span class="rounded bg-gray-100 px-2 py-0.5">{{ ucfirst($schedule->category->value) }}</span>
                             <span class="rounded bg-brand/30 px-2 py-0.5">{{ ucfirst($schedule->priority) }}</span>
+                            @if ($schedule->status === 'completed')
+                                <span class="rounded bg-green-100 px-2 py-0.5 text-green-800">Completed</span>
+                            @endif
                         </div>
                     </a>
                 </li>

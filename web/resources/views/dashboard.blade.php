@@ -54,7 +54,7 @@
                                     @foreach ($dayEntries as $entry)
                                         <li class="flex flex-wrap items-center justify-between gap-2 py-3">
                                             <div class="min-w-0"><p class="truncate text-sm font-semibold text-gray-900">{{ $entry->schedule->title }}</p><p class="mt-1 text-[11px] text-gray-500">{{ ucfirst($entry->schedule->category->value) }} @if ($entry->schedule->is_recurring) <span class="px-1 text-gray-300">·</span>{{ ucfirst($entry->schedule->recurrence_rule) }} @endif</p></div>
-                                            <time class="rounded-lg bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-700">{{ $entry->start->format('g:i A') }}–{{ $entry->end->format('g:i A') }}</time>
+                                            <time class="rounded-lg bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-700">{{ $entry->schedule->is_all_day ? 'All day' : $entry->start->format('g:i A').'–'.$entry->end->format('g:i A') }}</time>
                                         </li>
                                     @endforeach
                                 </ul>

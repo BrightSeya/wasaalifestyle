@@ -35,7 +35,7 @@
                    @checked(old('recommendation_personalization_consent')) class="mt-1 rounded border-gray-300 text-amber-700 focus:ring-amber-600">
             <span>
                 <span class="font-semibold">Personalize my time recommendations</span>
-                <span class="mt-1 block text-xs leading-5 text-gray-600">I agree that Wasaa may use my completed and missed activity and schedule outcomes from the past year to adjust my future time recommendations. This history is used for my recommendations and is not pooled with other users. I can change this choice in Settings at any time. If I leave this unchecked, I can still receive general recommendations.</span>
+                <span class="mt-1 block text-xs leading-5 text-gray-600">I agree that Wasaa may use my completed and missed activity and schedule outcomes from the past year to train a separate model for my recommendations when enough history is available. Until then, this history can adjust general recommendations. It is not pooled with other users. I can change this choice in Settings at any time; without consent, I can still receive general recommendations.</span>
             </span>
         </label>
         @error('recommendation_personalization_consent') <p class="-mt-3 text-xs text-red-600">{{ $message }}</p> @enderror

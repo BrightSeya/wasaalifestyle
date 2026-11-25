@@ -23,9 +23,13 @@ def precision_recall_f1(y_true, y_score, threshold=0.5):
     }
 
 
-def best_f1_threshold(y_true, y_score):
+def best_f1_threshold(y_true, y_score, sample_weight=None):
     """Choose the probability cutoff with the highest F1 on a tuning partition."""
-    precision, recall, thresholds = precision_recall_curve(y_true, y_score)
+    precision, recall, thresholds = precision_recall_curve(
+        y_true,
+        y_score,
+        sample_weight=sample_weight,
+    )
     if len(thresholds) == 0:
         return 0.5
 

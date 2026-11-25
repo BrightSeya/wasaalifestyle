@@ -83,6 +83,27 @@ class ScheduleWeekViewTest extends TestCase
             ->assertSee(route('schedules.edit', $schedule), false);
     }
 
+    public function test_expanded_calendar_card_shows_task_details_and_the_occurrence_action(): void
+    {
+        $this->entry('Past task', '2026-09-30 09:00', '2026-09-30 09:30');
+        $this->entry('Future task', '2026-09-30 11:00', '2026-09-30 11:30');
+
+        $this->actingAs($this->user)->get('/schedules/week')
+            ->assertOk()
+            ->assertSee('data-occurrence-toggle', false)
+            ->assertSee('data-occurrence-details hidden', false)
+            ->assertSee('Edit task')
+            ->assertSee('Record outcome')
+            ->assertSee('Completed')
+            ->assertSee('Cancel this occurrence')
+            ->assertSee('bg-emerald-50', false)
+            ->assertSee('bg-rose-50', false)
+            ->assertSee('bg-amber-50', false)
+            ->assertDontSee('Manage occurrence')
+            ->assertSee('Cancel this task? It will be marked as cancelled in your schedule.', false)
+            ->assertSee("event.key === 'Escape'", false);
+    }
+
     public function test_navigation_and_day_links(): void
     {
         $this->actingAs($this->user)->get('/schedules/week')
