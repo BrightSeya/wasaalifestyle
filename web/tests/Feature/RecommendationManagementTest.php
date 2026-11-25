@@ -46,39 +46,38 @@ class RecommendationManagementTest extends TestCase
         ], JSON_THROW_ON_ERROR));
     }
 
-    public function test_requesting_a_recommendation_stores_three_rows_linked_to_activity_and_user(): void
+    public function test_requesting_recommendations_stores_feasible_slots_linked_to_activity_and_user(): void
     {
+        $this->travelTo(Carbon::parse('2026-11-25 05:00:00', 'UTC'));
         $this->fakePrediction();
 
-        $user = User::factory()->create();
-        $activity = Activity::factory()->for($user)->create(['frequency' => 3]);
+        $availability = array_fill_keys(UserPreferences::days(), []);
+        $availability['wed'] = [
+            ['start' => '07:00', 'end' => '08:00'],
+            ['start' => '12:00', 'end' => '12:30'],
+        ];
+        $preferences = UserPreferences::default()->toArray();
+        $preferences['availability'] = $availability;
+        $user = User::factory()->create(['preferences' => $preferences]);
+        $activity = Activity::factory()->for($user)->create(['duration_minutes' => 30]);
 
         $response = $this->actingAs($user)->post(route('recommendations.store', $activity));
 
         $response->assertRedirect(route('recommendations.index'));
-        $this->assertDatabaseCount('recommendations', 3);
-        $this->assertSame(
-            3,
-            Recommendation::where('user_id', $user->id)->where('activity_id', $activity->id)->count(),
-        );
-        $suggestedDates = Recommendation::where('user_id', $user->id)
+        $recommendations = Recommendation::where('user_id', $user->id)
             ->where('activity_id', $activity->id)
             ->get()
-            ->map(fn (Recommendation $recommendation) => $recommendation->suggested_start->toDateString())
-            ->unique();
-        $this->assertCount(3, $suggestedDates, 'The weekly plan should use three different days.');
-    }
-
-    public function test_weekly_plan_uses_one_session_for_a_once_per_week_activity(): void
-    {
-        $this->fakePrediction();
-        $user = User::factory()->create();
-        $activity = Activity::factory()->for($user)->create(['frequency' => 1]);
-
-        $this->actingAs($user)->post(route('recommendations.store', $activity))
-            ->assertRedirect(route('recommendations.index'));
-
-        $this->assertDatabaseCount('recommendations', 1);
+            ->values();
+        $this->assertCount(3, $recommendations);
+        $this->assertTrue($recommendations->every(
+            fn (Recommendation $recommendation) => $recommendation->user_id === $user->id
+                && $recommendation->activity_id === $activity->id,
+        ));
+        $this->assertSame(
+            ['07:00', '07:30', '12:00'],
+            $recommendations->map(fn (Recommendation $recommendation) => $recommendation->suggested_start->format('H:i'))
+                ->sort()->values()->all(),
+        );
     }
 
     public function test_activity_plan_preview_returns_distinct_days_with_time_options(): void
@@ -234,8 +233,9 @@ class RecommendationManagementTest extends TestCase
         $this->assertDatabaseCount('recommendations', 0);
     }
 
-    public function test_no_suitable_availability_is_shown_on_the_recommendations_page(): void
+    public function test_recommendations_page_shows_empty_state_when_no_alternative_fits_availability(): void
     {
+        $this->travelTo(Carbon::parse('2026-11-25 05:00:00', 'UTC'));
         Http::fake([
             '*/predict' => Http::response([
                 'error' => 'No available time window is long enough for this activity on this day. Update availability or reduce the activity duration.',
@@ -243,11 +243,18 @@ class RecommendationManagementTest extends TestCase
         ]);
 
         $user = User::factory()->create();
-        Activity::factory()->for($user)->create();
+        $activity = Activity::factory()->for($user)->create();
+        Schedule::factory()->for($user)->for($activity)->create([
+            'title' => $activity->name,
+            'category' => $activity->category,
+            'start_datetime' => Carbon::parse('2026-11-25 08:00:00', 'UTC'),
+            'end_datetime' => Carbon::parse('2026-11-25 09:00:00', 'UTC'),
+        ]);
 
         $this->actingAs($user)->get(route('recommendations.index'))
             ->assertOk()
-            ->assertSee('No available time window is long enough for this activity on this day. Update availability or reduce the activity duration.');
+            ->assertSee('There are no upcoming scheduled tasks or lifestyle activities with a suitable alternative time right now.')
+            ->assertDontSee('No available time window is long enough for this activity on this day.');
     }
 
     public function test_schedule_task_recommendations_use_the_selected_weekday(): void

@@ -8,9 +8,9 @@ This document describes the repository as implemented: its Laravel application, 
 flowchart LR
     U[Browser] -->|HTTPS in deployment / HTTP locally| L[Laravel 12 application]
     L --> DB[(MySQL or MariaDB locally; SQLite in CI)]
-    L -->|POST /predict, timeout 5 s| F[Flask recommendation service]
-    F --> M[Random Forest model artifact]
-    F --> C[Model card and baseline metadata]
+    L -->|POST /predict, timeout 5 s| F[Private Flask API]
+    F --> M[Slot recommender Random Forest artifact]
+    F --> C[Model cards and baseline metadata]
     L -->|OAuth read-only import| G[Google Calendar API]
     L -->|Configured mail transport| E[Email provider]
 ```
@@ -24,7 +24,7 @@ Laravel owns authentication, authorization, validation, schedule persistence, co
 - `docs/` — user, integration, deployment, performance, and project documentation.
 - `.github/workflows/ci.yml` — repository sanity, Laravel, and ML test jobs.
 
-The application does not include a no-show or activity-risk assessment/reminder feature. Users can record schedule occurrence outcomes, which are used only when they opt in to personalizing their time-slot recommendations. The slot-suitability model and `/predict` route remain the ML component.
+The application does not include a no-show prediction, activity-risk assessment, or reminder feature. The `ml/no-show/` folder contains research and synthetic tests only; Laravel and Flask do not load or call it. Users can record schedule occurrence outcomes, which are used only for that user's time-slot recommendations when personalization is enabled. Flask's active ML endpoint is `/predict`.
 
 ## Request and data flow
 
@@ -132,7 +132,7 @@ Run the recommender tests from `ml/slot-recommender/` with its virtual environme
 python -m pytest
 ```
 
-Build frontend assets from `web/` with `npm.cmd run build`. GitHub Actions runs the repository sanity checks, Laravel tests on PHP 8.2 with SQLite, and recommender tests on Python 3.11. The workflow does not currently run the frontend build. Manual browser acceptance checks are described in the [User Manual](user-manual.md) and UAT/SUS plan.
+Build frontend assets from `web/` with `npm.cmd run build`. GitHub Actions runs the repository sanity checks, frontend production build, Laravel tests on PHP 8.2 with SQLite, and recommender tests on Python 3.11. A push to `main` deploys to the Azure VM only after those jobs pass. Manual browser acceptance checks are described in the [User Manual](user-manual.md) and UAT/SUS plan.
 
 ## Related documentation
 

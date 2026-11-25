@@ -21,8 +21,7 @@ return new class extends Migration
         }
 
         $hasRiskAssessmentForeignKey = collect(Schema::getForeignKeys('notifications'))
-            ->contains(fn (array $foreignKey): bool =>
-                $foreignKey['columns'] === ['risk_assessment_id']
+            ->contains(fn (array $foreignKey): bool => $foreignKey['columns'] === ['risk_assessment_id']
                 && $foreignKey['foreign_table'] === 'schedule_risk_assessments'
             );
 

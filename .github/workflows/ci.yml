@@ -27,6 +27,12 @@ jobs:
       - name: Build production assets
         run: npm run build
 
+      - name: Upload production assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: web/public/build/
+
   sanity:
     name: Sanity checks
     runs-on: ubuntu-latest
@@ -108,11 +114,17 @@ jobs:
     name: Deploy to Azure VM
     needs: [frontend, sanity, laravel, ml-slot]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, linux, x64, wasaa-prod]
+    runs-on: [self-hosted, Linux, X64, wasaa-prod]
     concurrency:
       group: wasaa-production-deploy
       cancel-in-progress: false
     steps:
+      - name: Download production assets
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: ${{ runner.temp }}/wasaa-web-build
+
       - name: Update the live application
         shell: bash
         run: |
@@ -123,8 +135,9 @@ jobs:
           git pull --ff-only origin main
           cd web
           composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
-          npm ci
-          npm run build
+          mkdir -p public/build
+          test -f "$RUNNER_TEMP/wasaa-web-build/manifest.json"
+          cp -a "$RUNNER_TEMP/wasaa-web-build/." public/build/
           php artisan migrate --force
           php artisan optimize:clear
           php artisan config:cache

@@ -72,7 +72,7 @@ There is no active no-show model or activity-risk rule system in the application
 
 Any future decision to add no-show prediction is outside the current implementation and would require suitable Wasaa outcomes and a separate evaluation.
 
-The trainer refuses to create artifacts unless the dataset report is labeled `approved-real` and the baseline has a valid chronological holdout. It also stops if each chronological partition cannot support both labels. Synthetic fixtures may exercise this pipeline, but their metrics are not Wasaa-user evidence. All model artifacts and private reports stay out of Git. Even a successful Wasaa evaluation leaves `user_facing_predictions_enabled` false pending review of data sufficiency, metrics, and an alert threshold.
+The trainer refuses to create artifacts unless the dataset report is labeled `approved-real` and the baseline has a valid chronological holdout. It also stops if the chronological train, validation, or test partition cannot support both labels. Synthetic fixtures may exercise this pipeline, but their metrics are not Wasaa-user evidence. All model artifacts and private reports stay out of Git. Even a successful evaluation leaves `user_facing_predictions_enabled` false pending review of data sufficiency, metrics, and an alert threshold.
 
 ## Service and alert integration
 
@@ -89,6 +89,6 @@ The running app has no no-show risk service or reminder scheduler. Flask handles
 | Real-data evaluation date and evaluated commit | Not available; there is no real-data evaluation to identify. |
 | Runtime integration | None; the archived model and training scripts are disconnected from Laravel and Flask. |
 | Automated pipeline / endpoint tests | Synthetic generated rows and test doubles verify code behavior only. They do not measure Wasaa-user performance. |
-| Azure deployment verification | Deferred until the user completes the planned final hosting pass; repository documentation does not claim VM verification. |
+| Azure deployment verification | The GitHub Actions deployment to the VM completed successfully on 2026-11-25; this does not evaluate model performance. |
 
 After institutional/supervisor approval, collect explicit Wasaa outcomes, prepare a private dataset, review exclusions, evaluate against a chronological holdout and baseline, and enable a model only if the evidence supports it. Raw user records, private feature files, model artifacts, and sensitive reports stay out of Git.

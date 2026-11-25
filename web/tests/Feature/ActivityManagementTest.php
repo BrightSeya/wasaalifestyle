@@ -6,8 +6,8 @@ use App\Enums\Category;
 use App\Models\Activity;
 use App\Models\Schedule;
 use App\Models\User;
-use Illuminate\Support\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class ActivityManagementTest extends TestCase
@@ -77,6 +77,26 @@ class ActivityManagementTest extends TestCase
             $last = $first->copy()->addWeeks($schedule->recurrence_count - 1);
             $this->assertLessThanOrEqual($first->copy()->addYear()->getTimestamp(), $last->getTimestamp());
         }
+    }
+
+    public function test_once_per_week_activity_creates_one_recurring_session(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-23 05:00:00', 'UTC'));
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post('/activities', $this->validData([
+            'frequency' => 1,
+            'weekly_slots' => [
+                ['weekday' => 1, 'start_time' => '06:30', 'confidence' => 0.8],
+            ],
+        ]))->assertRedirect(route('activities.index'));
+
+        $activity = $user->activities()->sole();
+        $schedule = $activity->schedules()->sole();
+        $this->assertSame(1, $activity->frequency);
+        $this->assertSame(1, count($activity->weekly_slots));
+        $this->assertTrue($schedule->is_recurring);
+        $this->assertSame('weekly', $schedule->recurrence_rule);
     }
 
     public function test_activity_cannot_be_created_for_another_user(): void

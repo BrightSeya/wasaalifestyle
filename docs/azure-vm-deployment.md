@@ -87,6 +87,36 @@ sudo systemctl reload nginx
 
 Do not repeatedly run seeders against a populated database: the default test user has a fixed unique email. Do not run `key:generate` during updates.
 
+## Automatic deployment from GitHub
+
+The `CI` workflow deploys a successful push to `main` after the frontend build, sanity checks, Laravel tests, and ML tests pass. It uses a self-hosted GitHub Actions runner on this VM, so no GitHub-hosted runner needs inbound SSH access. The VM runner connects outbound to GitHub.
+
+### One-time runner setup
+
+1. Complete the manual VM setup above. `/var/www/wasaa` must be a clean Git checkout of this repository on `main`; the production `.env`, database, and ignored recommender model artifacts must already be in place.
+2. In the GitHub repository, open **Settings → Actions → Runners → New self-hosted runner**, choose **Linux x64**, and follow GitHub's generated download and configuration commands in a VM terminal as `azureuser`. Add the custom label `wasaa-prod`. Never share or commit the temporary registration token.
+3. Install and start the runner as a service so it persists after SSH sessions end and VM restarts:
+
+   ```bash
+   sudo ./svc.sh install azureuser
+   sudo ./svc.sh start
+   sudo ./svc.sh status
+   ```
+
+   GitHub should show the runner online with labels `self-hosted`, `Linux`, `X64`, and `wasaa-prod`.
+4. The deployment job needs `azureuser` to run only the required service reloads without an interactive password. Check the `systemctl` path with `command -v systemctl`, then use `sudo visudo` to add this narrowly scoped rule, adjusting the path if needed:
+
+   ```sudoers
+   azureuser ALL=(root) NOPASSWD: /usr/bin/systemctl restart wasaa-recommender, /usr/bin/systemctl reload php8.3-fpm, /usr/bin/systemctl reload nginx
+   ```
+
+   Validate the file with `sudo visudo -c`. Do not grant the runner unrestricted sudo access.
+5. Protect `main` so only reviewed changes can trigger production deployment.
+
+Each successful push to `main` fetches the latest code into `/var/www/wasaa`, installs production Composer dependencies, copies the browser assets built and uploaded by the GitHub-hosted frontend job, applies Laravel migrations, refreshes the config cache, and reloads the recommender, PHP-FPM, and Nginx. Node.js and npm are needed by the GitHub-hosted build job, not on the VM. The workflow never overwrites `.env` or transfers model artifacts. Back up the database before releases that include migrations; keep VM and database backups current.
+
+If a deployment fails, inspect the failing job in GitHub **Actions** and the Laravel/Nginx/service logs on the VM. Do not run `key:generate` during an update or recovery.
+
 ## Production configuration checklist
 
 Set these values in the VM's private `.env`; keep secrets out of Git and documentation:
