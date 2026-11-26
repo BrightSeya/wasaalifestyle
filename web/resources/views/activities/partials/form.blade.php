@@ -33,12 +33,15 @@
 
     @php
         $initialWeeklySlots = old('weekly_slots', $activity->weekly_slots ?? []);
+        $activityConflicts = session('activity_conflicts');
+        $activityConflictSlots = $activityConflicts['by_slot'] ?? [];
     @endphp
     <section class="mt-6 border-t border-gray-100 pt-5"
              data-activity-plan
              data-preview-url="{{ route('activities.weekly-plan.preview') }}"
              data-activity-id="{{ $activity->exists ? $activity->id : '' }}"
-             data-initial-plan='@json($initialWeeklySlots)'>
+             data-initial-plan='@json($initialWeeklySlots)'
+             data-plan-conflicts='@json($activityConflictSlots)'>
         <h2 class="text-sm font-semibold text-gray-800">Weekly schedule</h2>
         <p class="mt-1 text-xs leading-5 text-gray-600">Get a plan for the next seven days. Wasaa suggests different days and up to three suitable times for each session. The saved plan repeats weekly for one year.</p>
         <button type="button" data-generate-activity-plan class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950 hover:bg-amber-100">
@@ -50,6 +53,25 @@
                 <p class="mt-1 text-xs text-red-600">{{ $messages[0] }}</p>
             @endif
         @endforeach
+        @if ($activityConflicts)
+            <input type="hidden" name="activity_conflict_fingerprint" value="{{ $activityConflicts['fingerprint'] }}">
+            <div class="mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-950"
+                 role="alert" data-activity-conflict-warning>
+                <p class="font-semibold">Some sessions overlap with your schedule.</p>
+                <ul class="mt-2 list-disc space-y-1 pl-5 text-xs">
+                    @foreach ($activityConflictSlots as $slotIndex => $details)
+                        @foreach ($details as $detail)
+                            <li>Session {{ (int) $slotIndex + 1 }}: {{ $detail['message'] }}</li>
+                        @endforeach
+                    @endforeach
+                </ul>
+                <p class="mt-2 text-xs">Change a highlighted day or time and save to check again, or confirm below to keep both entries scheduled.</p>
+            </div>
+            <button type="submit" name="confirmed" value="1" data-confirm-overlap
+                    class="mt-3 w-full rounded-md border border-rose-400 bg-rose-100 px-3 py-2 text-sm font-semibold text-rose-950 hover:bg-rose-200">
+                Confirm these overlapping times
+            </button>
+        @endif
         <div class="mt-3 space-y-3" data-activity-plan-days></div>
     </section>
 
@@ -60,11 +82,26 @@
             const cards = section?.querySelector('[data-activity-plan-days]');
             const status = section?.querySelector('[data-activity-plan-status]');
             const generateButton = section?.querySelector('[data-generate-activity-plan]');
+            const conflictWarning = section?.querySelector('[data-activity-conflict-warning]');
+            const confirmButton = section?.querySelector('[data-confirm-overlap]');
             if (!section || !form || !cards || !status || !generateButton) return;
 
             const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
             const field = name => form.querySelector(`[name="${name}"]`);
             const activityId = section.dataset.activityId;
+            const planConflicts = JSON.parse(section.dataset.planConflicts || '{}');
+
+            const clearConflictWarning = () => {
+                if (!conflictWarning || conflictWarning.hidden) return;
+                conflictWarning.hidden = true;
+                if (confirmButton) confirmButton.hidden = true;
+                cards.querySelectorAll('[data-plan-conflict]').forEach(item => item.remove());
+                cards.querySelectorAll('[data-plan-card]').forEach(card => {
+                    card.classList.remove('border-2', 'border-rose-400', 'bg-rose-50');
+                    card.classList.add('border-gray-200', 'bg-gray-50');
+                });
+                status.textContent = 'Plan changed. Save to check the updated schedule.';
+            };
 
             const requestOptions = async (card, excludeTimes = []) => {
                 const payload = {
@@ -120,9 +157,10 @@
                 }
             };
 
-            const makeCard = (index, slot, options = []) => {
+            const makeCard = (index, slot, options = [], showConflicts = true) => {
                 const card = document.createElement('article');
                 card.dataset.planIndex = String(index);
+                card.dataset.planCard = '';
                 card.className = 'rounded-xl border border-gray-200 bg-gray-50 p-3';
                 const heading = document.createElement('h3');
                 heading.className = 'text-xs font-bold text-gray-800';
@@ -214,10 +252,22 @@
                     current.textContent = "Saved time. Use 'More times' to find alternatives.";
                     optionsList.append(current);
                 }
+                const conflictDetails = showConflicts ? (planConflicts[String(index)] || []) : [];
+                if (conflictDetails.length) {
+                    card.classList.remove('border-gray-200', 'bg-gray-50');
+                    card.classList.add('border-2', 'border-rose-400', 'bg-rose-50');
+                    conflictDetails.forEach(detail => {
+                        const warning = document.createElement('p');
+                        warning.dataset.planConflict = '';
+                        warning.className = 'mt-2 text-xs font-semibold text-rose-800';
+                        warning.textContent = detail.message;
+                        card.append(warning);
+                    });
+                }
                 return card;
             };
 
-            const renderDays = days => {
+            const renderDays = (days, showConflicts = true) => {
                 cards.replaceChildren();
                 days.forEach((day, index) => {
                     const firstOption = day.options?.[0] || {};
@@ -225,7 +275,7 @@
                         weekday: day.weekday,
                         start_time: day.start_time || firstOption.start_time || '',
                         confidence: day.confidence ?? firstOption.confidence ?? '',
-                    }, day.options || []));
+                    }, day.options || [], showConflicts));
                 });
             };
 
@@ -248,6 +298,7 @@
                     status.textContent = 'Choose a category, duration, and weekly frequency first.';
                     return;
                 }
+                clearConflictWarning();
                 generateButton.disabled = true;
                 status.textContent = 'Finding a balanced weekly plan...';
                 try {
@@ -269,12 +320,23 @@
                     });
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.message || 'Recommendations are temporarily unavailable.');
-                    renderDays(data.days || []);
+                    renderDays(data.days || [], false);
                     status.textContent = data.message || 'Choose a time for each weekly session.';
                 } catch (error) {
                     status.textContent = error.message;
                 } finally {
                     generateButton.disabled = false;
+                }
+            });
+
+            form.addEventListener('input', event => {
+                if (event.target.name?.startsWith('weekly_slots') || ['name', 'category', 'frequency', 'duration_minutes'].includes(event.target.name)) {
+                    clearConflictWarning();
+                }
+            });
+            form.addEventListener('change', event => {
+                if (event.target.name?.startsWith('weekly_slots') || ['name', 'category', 'frequency', 'duration_minutes'].includes(event.target.name)) {
+                    clearConflictWarning();
                 }
             });
 

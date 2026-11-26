@@ -4,19 +4,20 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ActivityRequest;
 use App\Models\Activity;
-use App\Models\ScheduleOccurrenceOutcome;
 use App\Services\ConflictChecker;
 use App\Support\ActivityStats;
+use App\Support\Occurrence;
 use App\Support\RecurrenceLimits;
 use App\Support\UserPreferences;
 use App\Support\UserTime;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ActivityController extends Controller
@@ -61,14 +62,15 @@ class ActivityController extends Controller
     {
         $data = $request->validated();
         $slots = $data['weekly_slots'];
-        [$activity, $skippedOccurrences] = DB::transaction(function () use ($request, $data, $slots, $conflicts) {
-            $activity = $request->user()->activities()->create($data);
-            $skippedOccurrences = $this->replaceWeeklySchedules($request, $activity, $slots, $conflicts);
+        $plan = $this->prepareWeeklySchedules($request, $data, $slots, $conflicts);
 
-            return [$activity, $skippedOccurrences];
-        });
+        if ($warning = $this->conflictConfirmationWarning($request, $data, $slots, $plan['conflicts'], $plan['slot_indexes'])) {
+            return $warning;
+        }
 
-        return redirect()->route('activities.index')->with('status', $this->savedActivityMessage('Activity added.', $skippedOccurrences));
+        $this->persistWeeklySchedules($request, $data, $plan['schedules']);
+
+        return redirect()->route('activities.index')->with('status', $this->savedActivityMessage('Activity added.', $plan['conflicts']));
     }
 
     public function edit(Activity $activity): View
@@ -84,29 +86,38 @@ class ActivityController extends Controller
 
         $data = $request->validated();
         $slots = $data['weekly_slots'];
-        $skippedOccurrences = DB::transaction(function () use ($request, $activity, $data, $slots, $conflicts): int {
-            $activity->update($data);
+        $plan = $this->prepareWeeklySchedules(
+            $request,
+            $data,
+            $slots,
+            $conflicts,
+            $activity->schedules()->pluck('id')->all(),
+        );
 
-            return $this->replaceWeeklySchedules($request, $activity, $slots, $conflicts);
-        });
+        if ($warning = $this->conflictConfirmationWarning($request, $data, $slots, $plan['conflicts'], $plan['slot_indexes'], $activity)) {
+            return $warning;
+        }
 
-        return redirect()->route('activities.index')->with('status', $this->savedActivityMessage('Activity updated.', $skippedOccurrences));
+        $this->persistWeeklySchedules($request, $data, $plan['schedules'], $activity);
+
+        return redirect()->route('activities.index')->with('status', $this->savedActivityMessage('Activity updated.', $plan['conflicts']));
     }
 
     /**
      * @param  list<array{weekday: int|string, start_time: string, confidence?: float|string|null}>  $slots
+     * @param  list<int>  $excludeScheduleIds
+     * @return array{schedules: list<array<string, mixed>>, conflicts: Collection<int, array{type: string, message: string, occurrence: Occurrence, candidate_start: Carbon}>, slot_indexes: array<int, int>}
      */
-    private function replaceWeeklySchedules(ActivityRequest $request, Activity $activity, array $slots, ConflictChecker $conflicts): int
+    private function prepareWeeklySchedules(ActivityRequest $request, array $data, array $slots, ConflictChecker $conflicts, array $excludeScheduleIds = []): array
     {
         $user = $request->user();
         $timezone = UserTime::timezone($user);
         $today = Carbon::now($timezone)->startOfDay();
-        $activity->schedules()->update(['recurrence_end_date' => $today->copy()->subDay()->toDateString()]);
-
         $preferences = UserPreferences::fromArray($user->preferences);
         $intervals = [];
         $newSchedules = [];
         $slotIndexesByWeekday = [];
+        $duration = (int) $data['duration_minutes'];
         foreach ($slots as $index => $slot) {
             $weekday = (int) $slot['weekday'];
             $slotIndexesByWeekday[$weekday] = $index;
@@ -117,7 +128,7 @@ class ActivityController extends Controller
             if ($first->lessThanOrEqualTo(Carbon::now($timezone))) {
                 $first->addWeek();
             }
-            $end = $first->copy()->addMinutes($activity->duration_minutes);
+            $end = $first->copy()->addMinutes($duration);
             if (! $this->fitsAvailability($preferences, $first->copy()->startOfDay(), $first, $end)) {
                 throw ValidationException::withMessages([
                     "weekly_slots.{$index}.start_time" => 'This time does not fit your availability for that weekday.',
@@ -128,13 +139,12 @@ class ActivityController extends Controller
             $occurrenceCount = (int) floor($first->copy()->startOfDay()->diffInDays($lastDate) / 7) + 1;
             for ($occurrence = 0; $occurrence < $occurrenceCount; $occurrence++) {
                 $start = $first->copy()->addWeeks($occurrence);
-                $intervals[] = ['start' => $start, 'end' => $start->copy()->addMinutes($activity->duration_minutes)];
+                $intervals[] = ['start' => $start, 'end' => $start->copy()->addMinutes($duration)];
             }
 
             $newSchedules[] = [
-                'activity_id' => $activity->id,
-                'title' => $activity->name,
-                'category' => $activity->category,
+                'title' => $data['name'],
+                'category' => $data['category'],
                 'start_datetime' => UserTime::utc($user, $first),
                 'end_datetime' => UserTime::utc($user, $end),
                 'priority' => 'medium',
@@ -145,57 +155,137 @@ class ActivityController extends Controller
             ];
         }
 
-        $scheduleConflicts = $conflicts->checkMany($user, $intervals, 'medium');
-        if ($scheduleConflicts->isNotEmpty()) {
-            $repeatedConflicts = $scheduleConflicts->groupBy(fn ($conflict) => $conflict['occurrence']->schedule->id)
-                ->filter(fn ($items) => $items->first()['occurrence']->schedule->is_recurring
-                    && $items->pluck('candidate_start')->unique(fn (Carbon $date) => $date->format('Y-m-d H:i:s'))->count() > 1)
-                ->flatten(1);
-            $errors = [];
-            foreach ($repeatedConflicts as $conflict) {
-                $weekday = $conflict['candidate_start']->dayOfWeekIso;
-                $index = $slotIndexesByWeekday[$weekday] ?? null;
-                if ($index === null) {
-                    continue;
-                }
-
-                $errors["weekly_slots.{$index}.start_time"] = "This time conflicts with {$conflict['occurrence']->schedule->title} on {$conflict['candidate_start']->format('D, M j')}. Choose another time.";
-            }
-
-            if ($errors !== []) {
-                throw ValidationException::withMessages($errors);
-            }
-        }
-
-        foreach ($newSchedules as $schedule) {
-            $createdSchedule = $user->schedules()->create($schedule);
-            $weekday = UserTime::local($user, $createdSchedule->start_datetime)->dayOfWeekIso;
-            $skippedStarts = $scheduleConflicts
-                ->filter(fn ($conflict) => $conflict['candidate_start']->dayOfWeekIso === $weekday)
-                ->pluck('candidate_start')
-                ->unique(fn (Carbon $date) => $date->format('Y-m-d H:i:s'));
-            foreach ($skippedStarts as $start) {
-                $storedStart = UserTime::utc($user, $start);
-                $createdSchedule->occurrenceOutcomes()->updateOrCreate(
-                    ['occurrence_start' => $storedStart],
-                    [
-                        'occurrence_end' => UserTime::utc($user, $start->copy()->addMinutes($activity->duration_minutes)),
-                        'outcome' => 'cancelled',
-                        'recorded_at' => now(),
-                    ],
-                );
-            }
-        }
-
-        return $scheduleConflicts->pluck('candidate_start')
-            ->unique(fn (Carbon $date) => $date->format('Y-m-d H:i:s'))
-            ->count();
+        return [
+            'schedules' => $newSchedules,
+            'conflicts' => $conflicts->checkMany($user, $intervals, 'medium', excludeScheduleIds: $excludeScheduleIds),
+            'slot_indexes' => $slotIndexesByWeekday,
+        ];
     }
 
-    private function savedActivityMessage(string $message, int $skippedOccurrences): string
+    /**
+     * @param  list<array{weekday: int|string, start_time: string, confidence?: float|string|null}>  $slots
+     * @param  Collection<int, array{type: string, message: string, occurrence: Occurrence, candidate_start: Carbon}>  $scheduleConflicts
+     * @param  array<int, int>  $slotIndexesByWeekday
+     */
+    private function conflictConfirmationWarning(
+        ActivityRequest $request,
+        array $data,
+        array $slots,
+        Collection $scheduleConflicts,
+        array $slotIndexesByWeekday,
+        ?Activity $activity = null,
+    ): ?RedirectResponse {
+        if ($scheduleConflicts->isEmpty()) {
+            return null;
+        }
+
+        $fingerprint = $this->conflictFingerprint($request, $data, $slots, $scheduleConflicts, $activity);
+        $submittedFingerprint = $request->input('activity_conflict_fingerprint');
+        if ($request->boolean('confirmed')
+            && is_string($submittedFingerprint)
+            && hash_equals($fingerprint, $submittedFingerprint)) {
+            return null;
+        }
+
+        $grouped = $scheduleConflicts->groupBy(function ($conflict) use ($slotIndexesByWeekday) {
+            $slotIndex = $slotIndexesByWeekday[$conflict['candidate_start']->dayOfWeekIso];
+
+            return $slotIndex.'|'.$conflict['occurrence']->schedule->id;
+        });
+        $bySlot = [];
+        foreach ($grouped as $items) {
+            $ordered = $items->sortBy(fn ($conflict) => $conflict['candidate_start']->getTimestamp());
+            $first = $ordered->first();
+            $last = $ordered->last();
+            $candidateStart = $first['candidate_start'];
+            $candidateEnd = $candidateStart->copy()->addMinutes((int) $data['duration_minutes']);
+            $occurrence = $first['occurrence'];
+            $slotIndex = $slotIndexesByWeekday[$candidateStart->dayOfWeekIso];
+            $count = $ordered->pluck('candidate_start')
+                ->unique(fn (Carbon $date) => $date->format('Y-m-d H:i:s'))
+                ->count();
+            $message = $candidateStart->format('D, M j').' '.$candidateStart->format('g:i A').'-'.$candidateEnd->format('g:i A')
+                .' overlaps with '.$occurrence->schedule->title.' ('.$occurrence->start->format('g:i A').'-'.$occurrence->end->format('g:i A').')';
+            if ($count > 1) {
+                $message .= " on {$count} planned occurrences through ".$last['candidate_start']->format('D, M j');
+            }
+
+            $bySlot[$slotIndex][] = ['message' => $message.'.'];
+        }
+        ksort($bySlot);
+
+        return back()->withInput()->with('activity_conflicts', [
+            'fingerprint' => $fingerprint,
+            'by_slot' => $bySlot,
+        ]);
+    }
+
+    /**
+     * @param  list<array{weekday: int|string, start_time: string, confidence?: float|string|null}>  $slots
+     * @param  Collection<int, array{type: string, message: string, occurrence: Occurrence, candidate_start: Carbon}>  $scheduleConflicts
+     */
+    private function conflictFingerprint(ActivityRequest $request, array $data, array $slots, Collection $scheduleConflicts, ?Activity $activity): string
     {
-        return $skippedOccurrences > 0
-            ? $message.' Conflicting weekly occurrences were skipped; the remaining sessions stay scheduled.'
+        $conflictDetails = $scheduleConflicts->map(function ($conflict) {
+            $occurrence = $conflict['occurrence'];
+
+            return [
+                'type' => $conflict['type'],
+                'candidate_start' => $conflict['candidate_start']->format('Y-m-d H:i:sP'),
+                'schedule_id' => $occurrence->schedule->id,
+                'schedule_title' => $occurrence->schedule->title,
+                'occurrence_start' => $occurrence->start->format('Y-m-d H:i:sP'),
+                'occurrence_end' => $occurrence->end->format('Y-m-d H:i:sP'),
+            ];
+        })->sortBy(fn ($conflict) => implode('|', $conflict))->values()->all();
+        $payload = json_encode([
+            'user_id' => $request->user()->id,
+            'activity_id' => $activity?->id,
+            'activity' => [
+                'name' => $data['name'],
+                'category' => $data['category'],
+                'duration_minutes' => $data['duration_minutes'],
+            ],
+            'slots' => collect($slots)->map(fn ($slot) => [
+                'weekday' => (int) $slot['weekday'],
+                'start_time' => $slot['start_time'],
+            ])->values()->all(),
+            'conflicts' => $conflictDetails,
+        ], JSON_THROW_ON_ERROR);
+
+        return hash_hmac('sha256', $payload, (string) config('app.key'));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $schedules
+     */
+    private function persistWeeklySchedules(ActivityRequest $request, array $data, array $schedules, ?Activity $activity = null): Activity
+    {
+        return DB::transaction(function () use ($request, $data, $schedules, $activity): Activity {
+            $user = $request->user();
+            if ($activity) {
+                $today = Carbon::now(UserTime::timezone($user))->startOfDay();
+                $activity->update($data);
+                $activity->schedules()->update(['recurrence_end_date' => $today->copy()->subDay()->toDateString()]);
+            } else {
+                $activity = $user->activities()->create($data);
+            }
+
+            foreach ($schedules as $schedule) {
+                $user->schedules()->create($schedule + ['activity_id' => $activity->id]);
+            }
+
+            return $activity;
+        });
+    }
+
+    /**
+     * @param  Collection<int, array{type: string, message: string, occurrence: Occurrence, candidate_start: Carbon}>  $conflicts
+     */
+    private function savedActivityMessage(string $message, Collection $conflicts): string
+    {
+        return $conflicts->isNotEmpty()
+            ? $message.' Overlapping weekly sessions were confirmed and saved.'
             : $message;
     }
 

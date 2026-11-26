@@ -136,4 +136,27 @@ class ScheduleWeekViewTest extends TestCase
 
         $this->assertSame(7, substr_count($html, '<span class="block truncate font-semibold">Meditation</span>'));
     }
+
+    public function test_overlapping_entries_are_displayed_in_separate_calendar_lanes(): void
+    {
+        $this->entry('Morning Run', '2026-09-29 09:00', '2026-09-29 10:00');
+        $this->entry('Team Meeting', '2026-09-29 09:00', '2026-09-29 10:00');
+
+        $html = $this->actingAs($this->user)->get('/schedules/week')->assertOk()->getContent();
+
+        $this->assertStringContainsString('left: calc(0% + 2px); width: calc(50% - 4px);', $html);
+        $this->assertStringContainsString('left: calc(50% + 2px); width: calc(50% - 4px);', $html);
+    }
+
+    public function test_partially_overlapping_entries_reuse_a_lane_after_an_entry_ends(): void
+    {
+        $this->entry('Long task', '2026-09-29 09:00', '2026-09-29 11:00');
+        $this->entry('First short task', '2026-09-29 09:30', '2026-09-29 10:00');
+        $this->entry('Second short task', '2026-09-29 10:00', '2026-09-29 10:30');
+
+        $html = $this->actingAs($this->user)->get('/schedules/week')->assertOk()->getContent();
+
+        $this->assertSame(3, substr_count($html, 'width: calc(50% - 4px);'));
+        $this->assertSame(2, substr_count($html, 'left: calc(50% + 2px);'));
+    }
 }
