@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Log;
 
 class GoogleCalendarOAuthService
 {
+    public const OPENID_SCOPE = 'openid';
+
     public const READONLY_EVENTS_SCOPE = 'https://www.googleapis.com/auth/calendar.events.readonly';
 
     public const READONLY_TASKS_SCOPE = 'https://www.googleapis.com/auth/tasks.readonly';
@@ -25,6 +27,7 @@ class GoogleCalendarOAuthService
     ];
 
     private const AUTHORIZATION_SCOPES = [
+        self::OPENID_SCOPE,
         self::READONLY_EVENTS_SCOPE,
         self::READONLY_TASKS_SCOPE,
         self::ACCOUNT_EMAIL_SCOPE,
