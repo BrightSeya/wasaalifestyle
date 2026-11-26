@@ -70,6 +70,8 @@
                         @php
                             $minutesFromTop = ($entry->start->hour - $startHour) * 60 + $entry->start->minute;
                             $duration = abs($entry->start->diffInMinutes($entry->end));
+                            $laneWidth = 100 / $entry->laneCount;
+                            $laneLeft = $entry->lane * $laneWidth;
                         @endphp
                         @php
                             $outcomeKey = $entry->schedule->id.'|'.$entry->start->format('Y-m-d H:i:s');
@@ -77,8 +79,8 @@
                         @endphp
                         <div
                            data-occurrence-card
-                           @class(['absolute inset-x-1 rounded-md border px-2 py-1 text-xs hover:shadow', $colors[$entry->schedule->category->value], 'opacity-60 line-through' => $savedOutcome?->outcome === 'cancelled'])
-                           style="top: {{ $minutesFromTop / 60 * $hourHeight }}px; height: {{ max(36, $duration / 60 * $hourHeight) }}px;"
+                           @class(['absolute rounded-md border px-2 py-1 text-xs hover:shadow', $colors[$entry->schedule->category->value], 'opacity-60 line-through' => $savedOutcome?->outcome === 'cancelled'])
+                           style="left: calc({{ $laneLeft }}% + 2px); width: calc({{ $laneWidth }}% - 4px); top: {{ $minutesFromTop / 60 * $hourHeight }}px; height: {{ max(36, $duration / 60 * $hourHeight) }}px;"
                            title="{{ $entry->schedule->title }} ({{ $entry->start->format('g:i A') }} - {{ $entry->end->format('g:i A') }})@if ($entry->schedule->timezone) — Google source zone: {{ $entry->schedule->timezone }}@endif">
                             <button type="button" data-occurrence-toggle aria-expanded="false"
                                     aria-label="Show details for {{ $entry->schedule->title }} on {{ $entry->start->format('l, F j') }}"

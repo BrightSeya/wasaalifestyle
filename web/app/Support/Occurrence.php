@@ -16,5 +16,7 @@ final readonly class Occurrence
         public Carbon $start,
         public Carbon $end,
         public ?string $outcome = null,
+        public int $lane = 0,
+        public int $laneCount = 1,
     ) {}
 }

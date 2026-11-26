@@ -182,7 +182,52 @@ class ActivityManagementTest extends TestCase
         $this->assertSame(0, Schedule::count());
     }
 
-    public function test_a_single_conflicting_occurrence_is_skipped_without_removing_the_weekly_slot(): void
+    public function test_a_conflicting_occurrence_requires_confirmation_and_is_saved_without_cancellation(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-23 05:00:00', 'UTC'));
+        $user = User::factory()->create();
+        $meeting = $user->schedules()->create([
+            'title' => 'One-off meeting',
+            'category' => 'work',
+            'start_datetime' => Carbon::parse('2026-11-23 06:30:00', 'UTC'),
+            'end_datetime' => Carbon::parse('2026-11-23 07:15:00', 'UTC'),
+            'priority' => 'medium',
+            'is_recurring' => false,
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($user)->from(route('activities.create'))->post('/activities', $this->validData())
+            ->assertRedirect(route('activities.create'))
+            ->assertSessionHas('activity_conflicts.by_slot.0.0.message');
+
+        $fingerprint = session('activity_conflicts.fingerprint');
+        $this->assertSame(0, $user->activities()->count());
+        $this->assertSame(1, $user->schedules()->count());
+
+        $this->get(route('activities.create'))
+            ->assertOk()
+            ->assertSee('Some sessions overlap with your schedule.')
+            ->assertSee('One-off meeting')
+            ->assertSee('data-plan-conflict', false)
+            ->assertSee('Confirm these overlapping times');
+
+        $this->actingAs($user)->post('/activities', $this->validData([
+            'confirmed' => '1',
+            'activity_conflict_fingerprint' => $fingerprint,
+        ]))->assertRedirect(route('activities.index'))
+            ->assertSessionHas('status', 'Activity added. Overlapping weekly sessions were confirmed and saved.');
+
+        $activity = $user->activities()->sole();
+        $mondaySchedule = $activity->schedules()->get()->first(
+            fn (Schedule $schedule) => $schedule->start_datetime->copy()->setTimezone('UTC')->dayOfWeekIso === 1,
+        );
+        $this->assertNotNull($mondaySchedule);
+        $this->assertSame(0, $mondaySchedule->occurrenceOutcomes()->count());
+        $this->assertSame(5, $activity->schedules()->count());
+        $this->assertSame('One-off meeting', $meeting->fresh()->title);
+    }
+
+    public function test_rescheduling_a_conflicting_weekday_saves_without_overlap_confirmation(): void
     {
         $this->travelTo(Carbon::parse('2026-11-23 05:00:00', 'UTC'));
         $user = User::factory()->create();
@@ -195,21 +240,22 @@ class ActivityManagementTest extends TestCase
             'is_recurring' => false,
             'status' => 'pending',
         ]);
+        $data = $this->validData();
+        $data['weekly_slots'][0]['start_time'] = '08:00';
 
-        $this->actingAs($user)->post('/activities', $this->validData())
+        $this->actingAs($user)->post('/activities', $data)
             ->assertRedirect(route('activities.index'))
-            ->assertSessionHas('status', 'Activity added. Conflicting weekly occurrences were skipped; the remaining sessions stay scheduled.');
+            ->assertSessionHas('status', 'Activity added.');
 
-        $activity = $user->activities()->sole();
-        $mondaySchedule = $activity->schedules()->get()->first(
-            fn (Schedule $schedule) => $schedule->start_datetime->copy()->setTimezone('UTC')->dayOfWeekIso === 1,
-        );
-        $this->assertNotNull($mondaySchedule);
-        $this->assertSame('cancelled', $mondaySchedule->occurrenceOutcomes()->sole()->outcome);
-        $this->assertSame(5, $activity->schedules()->count());
+        $weekdays = $user->activities()->sole()->schedules()->get()
+            ->map(fn (Schedule $schedule) => $schedule->start_datetime->copy()->setTimezone('UTC')->dayOfWeekIso)
+            ->sort()
+            ->values()
+            ->all();
+        $this->assertSame([1, 2, 3, 4, 5], $weekdays);
     }
 
-    public function test_repeating_conflicts_must_be_resolved_before_saving_the_weekly_plan(): void
+    public function test_repeating_conflicts_are_listed_and_can_be_confirmed(): void
     {
         $this->travelTo(Carbon::parse('2026-11-23 05:00:00', 'UTC'));
         $user = User::factory()->create();
@@ -225,8 +271,111 @@ class ActivityManagementTest extends TestCase
             'status' => 'pending',
         ]);
 
-        $this->actingAs($user)->post('/activities', $this->validData())
-            ->assertSessionHasErrors('weekly_slots.0.start_time');
+        $this->actingAs($user)->from(route('activities.create'))->post('/activities', $this->validData())
+            ->assertRedirect(route('activities.create'))
+            ->assertSessionHas('activity_conflicts.by_slot.0.0.message');
+
+        $fingerprint = session('activity_conflicts.fingerprint');
+        $this->assertSame(0, $user->activities()->count());
+
+        $this->actingAs($user)->post('/activities', $this->validData([
+            'confirmed' => '1',
+            'activity_conflict_fingerprint' => $fingerprint,
+        ]))->assertRedirect(route('activities.index'))
+            ->assertSessionHas('status', 'Activity added. Overlapping weekly sessions were confirmed and saved.');
+
+        $this->assertSame(5, $user->activities()->sole()->schedules()->count());
+        $this->assertSame(0, $user->activities()->sole()->schedules()
+            ->withCount('occurrenceOutcomes')
+            ->get()
+            ->sum('occurrence_outcomes_count'));
+    }
+
+    public function test_updating_a_weekly_activity_does_not_replace_its_plan_before_conflict_confirmation(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-23 05:00:00', 'UTC'));
+        $user = User::factory()->create();
+        $activity = Activity::factory()->for($user)->create([
+            'name' => 'Existing routine',
+            'frequency' => 1,
+            'weekly_slots' => [['weekday' => 1, 'start_time' => '06:30', 'confidence' => 0.8]],
+        ]);
+        $oldSchedule = $user->schedules()->create([
+            'activity_id' => $activity->id,
+            'title' => $activity->name,
+            'category' => $activity->category,
+            'start_datetime' => Carbon::parse('2026-11-23 06:30:00', 'UTC'),
+            'end_datetime' => Carbon::parse('2026-11-23 07:15:00', 'UTC'),
+            'priority' => 'medium',
+            'is_recurring' => true,
+            'recurrence_rule' => 'weekly',
+            'recurrence_count' => 53,
+            'status' => 'pending',
+        ]);
+        $user->schedules()->create([
+            'title' => 'Weekly meeting',
+            'category' => 'work',
+            'start_datetime' => Carbon::parse('2026-11-24 06:30:00', 'UTC'),
+            'end_datetime' => Carbon::parse('2026-11-24 07:15:00', 'UTC'),
+            'priority' => 'medium',
+            'is_recurring' => true,
+            'recurrence_rule' => 'weekly',
+            'recurrence_count' => 3,
+            'status' => 'pending',
+        ]);
+        $data = $this->validData([
+            'name' => 'Updated routine',
+            'frequency' => 1,
+            'weekly_slots' => [['weekday' => 2, 'start_time' => '06:30', 'confidence' => 0.8]],
+        ]);
+
+        $this->actingAs($user)->from(route('activities.edit', $activity))->put(route('activities.update', $activity), $data)
+            ->assertRedirect(route('activities.edit', $activity))
+            ->assertSessionHas('activity_conflicts.by_slot.0.0.message');
+        $fingerprint = session('activity_conflicts.fingerprint');
+
+        $this->assertSame('Existing routine', $activity->fresh()->name);
+        $this->assertNull($oldSchedule->fresh()->recurrence_end_date);
+
+        $this->actingAs($user)->put(route('activities.update', $activity), $data + [
+            'confirmed' => '1',
+            'activity_conflict_fingerprint' => $fingerprint,
+        ])->assertRedirect(route('activities.index'))
+            ->assertSessionHas('status', 'Activity updated. Overlapping weekly sessions were confirmed and saved.');
+
+        $this->assertSame('Updated routine', $activity->fresh()->name);
+        $this->assertSame('2026-11-22', $oldSchedule->fresh()->recurrence_end_date->toDateString());
+        $this->assertSame(1, $activity->fresh()->schedules()->whereNull('recurrence_end_date')->count());
+    }
+
+    public function test_changed_conflicts_require_a_fresh_confirmation(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-23 05:00:00', 'UTC'));
+        $user = User::factory()->create();
+        $meeting = $user->schedules()->create([
+            'title' => 'Weekly meeting',
+            'category' => 'work',
+            'start_datetime' => Carbon::parse('2026-11-23 06:30:00', 'UTC'),
+            'end_datetime' => Carbon::parse('2026-11-23 07:15:00', 'UTC'),
+            'priority' => 'medium',
+            'is_recurring' => true,
+            'recurrence_rule' => 'weekly',
+            'recurrence_count' => 3,
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($user)->from(route('activities.create'))->post('/activities', $this->validData())
+            ->assertRedirect(route('activities.create'))
+            ->assertSessionHas('activity_conflicts.by_slot.0.0.message');
+        $staleFingerprint = session('activity_conflicts.fingerprint');
+
+        $meeting->update(['title' => 'Updated weekly meeting']);
+
+        $this->actingAs($user)->from(route('activities.create'))->post('/activities', $this->validData([
+            'confirmed' => '1',
+            'activity_conflict_fingerprint' => $staleFingerprint,
+        ]))->assertRedirect(route('activities.create'))
+            ->assertSessionHas('activity_conflicts.by_slot.0.0.message');
 
         $this->assertSame(0, $user->activities()->count());
     }
