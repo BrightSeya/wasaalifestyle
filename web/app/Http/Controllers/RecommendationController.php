@@ -194,6 +194,7 @@ class RecommendationController extends Controller
             'category' => ['required', Rule::enum(Category::class)],
             'duration_minutes' => ['required', 'integer', 'between:5,600'],
             'frequency' => ['required', 'integer', 'between:1,7'],
+            'preferred_time_of_day' => ['nullable', 'date_format:H:i'],
             'weekday' => ['required_if:mode,day', 'nullable', 'integer', 'between:1,7'],
             'activity_id' => ['nullable', 'integer'],
             'exclude_times' => ['nullable', 'array'],
@@ -258,15 +259,37 @@ class RecommendationController extends Controller
             }
         }
 
-        $targetSessions = min((int) $data['frequency'], count($days));
-        $days = $this->selectSpreadOutActivityDays($days, $targetSessions);
+        $frequency = (int) $data['frequency'];
+        $days = $this->selectSpreadOutActivityDays($days, min($frequency, count($days)));
+        $recommendedSessionCount = count($days);
+        $recommendedWeekdays = array_fill_keys(array_column($days, 'weekday'), true);
+        $preferredTime = $data['preferred_time_of_day']
+            ?? ($activity?->preferred_time_of_day ? substr($activity->preferred_time_of_day, 0, 5) : '07:00');
+        for ($offset = 0; count($days) < $frequency && $offset < 7; $offset++) {
+            $date = $today->copy()->addDays($offset);
+            if (isset($recommendedWeekdays[$date->dayOfWeekIso])) {
+                continue;
+            }
+
+            $days[] = [
+                'date' => $date->toDateString(),
+                'weekday' => $date->dayOfWeekIso,
+                'weekday_label' => $date->format('l'),
+                'start_time' => $preferredTime,
+                'options' => [],
+                'recommendation_missing' => true,
+            ];
+            $recommendedWeekdays[$date->dayOfWeekIso] = true;
+        }
+        usort($days, fn (array $left, array $right) => $left['date'] <=> $right['date']);
 
         return response()->json([
-            'frequency' => (int) $data['frequency'],
+            'frequency' => $frequency,
             'session_count' => count($days),
+            'recommended_session_count' => $recommendedSessionCount,
             'days' => $days,
-            'message' => count($days) < (int) $data['frequency']
-                ? 'Some weekly sessions could not be recommended with your current availability and schedule.'
+            'message' => $recommendedSessionCount < $frequency
+                ? 'Recommended times are shown where available. Other sessions use your preferred time; adjust them as needed.'
                 : 'Choose one recommended time for each day, or ask for more times on that day.',
         ]);
     }

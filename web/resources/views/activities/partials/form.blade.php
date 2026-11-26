@@ -157,7 +157,7 @@
                 }
             };
 
-            const makeCard = (index, slot, options = [], showConflicts = true) => {
+            const makeCard = (index, slot, options = [], showConflicts = true, recommendationMissing = false) => {
                 const card = document.createElement('article');
                 card.dataset.planIndex = String(index);
                 card.dataset.planCard = '';
@@ -246,11 +246,17 @@
 
                 card.append(heading, controls, optionsList, more);
                 options.forEach((option, optionIndex) => addOption(card, option, optionIndex === 0));
-                if (!options.length && time.value) {
+                if (!options.length && time.value && !recommendationMissing) {
                     const current = document.createElement('p');
                     current.className = 'mt-2 text-xs text-gray-500';
                     current.textContent = "Saved time. Use 'More times' to find alternatives.";
                     optionsList.append(current);
+                }
+                if (recommendationMissing) {
+                    const fallback = document.createElement('p');
+                    fallback.className = 'mt-2 text-xs text-amber-800';
+                    fallback.textContent = 'No suitable recommendation was found. This session uses your preferred time; change it if needed.';
+                    optionsList.append(fallback);
                 }
                 const conflictDetails = showConflicts ? (planConflicts[String(index)] || []) : [];
                 if (conflictDetails.length) {
@@ -275,7 +281,7 @@
                         weekday: day.weekday,
                         start_time: day.start_time || firstOption.start_time || '',
                         confidence: day.confidence ?? firstOption.confidence ?? '',
-                    }, day.options || [], showConflicts));
+                    }, day.options || [], showConflicts, day.recommendation_missing === true));
                 });
             };
 
@@ -307,6 +313,7 @@
                         category: field('category').value,
                         duration_minutes: Number(field('duration_minutes').value),
                         frequency: Number(field('frequency').value),
+                        preferred_time_of_day: field('preferred_time_of_day').value,
                     };
                     if (activityId) payload.activity_id = Number(activityId);
                     const response = await fetch(section.dataset.previewUrl, {
