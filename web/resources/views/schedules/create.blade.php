@@ -40,7 +40,7 @@
         </aside>
     </div>
 
-    <script>
+    <script nonce="{{ request()->attributes->get('cspNonce', '') }}">
         (() => {
             const form = document.querySelector('[data-task-form]');
             const button = document.querySelector('[data-task-recommend-button]');

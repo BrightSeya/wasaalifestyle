@@ -53,7 +53,7 @@
         <div class="mt-3 space-y-3" data-activity-plan-days></div>
     </section>
 
-    <script>
+    <script nonce="{{ request()->attributes->get('cspNonce', '') }}">
         (() => {
             const section = document.querySelector('[data-activity-plan]');
             const form = section?.closest('form');

@@ -288,7 +288,7 @@
             </form>
         </details>
     </div>
-<script>
+<script nonce="{{ request()->attributes->get('cspNonce', '') }}">
     (() => {
         const template = document.querySelector('[data-availability-range-template]');
         if (!template) return;
