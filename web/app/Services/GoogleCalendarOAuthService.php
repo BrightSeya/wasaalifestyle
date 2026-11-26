@@ -119,6 +119,12 @@ class GoogleCalendarOAuthService
             Log::warning('Google Calendar OAuth token response contained unexpected scopes.', [
                 'missing_required_scope_count' => count($missingScopes),
                 'unexpected_scope_count' => count($unexpectedScopes),
+                'unexpected_scopes' => array_values(array_filter(
+                    $unexpectedScopes,
+                    static fn ($scope): bool => is_string($scope)
+                        && strlen($scope) <= 200
+                        && preg_match('/\A[A-Za-z0-9._:\/-]+\z/', $scope) === 1,
+                )),
             ]);
 
             return false;

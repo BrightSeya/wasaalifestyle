@@ -113,6 +113,34 @@ class GoogleCalendarConnectionTest extends TestCase
         $this->assertDatabaseCount('google_calendar_connections', 0);
     }
 
+    public function test_unexpected_scope_failure_logs_only_safe_scope_identifiers(): void
+    {
+        $this->configureGoogleOAuth();
+        $extraScope = 'https://www.googleapis.com/auth/userinfo.profile';
+        Http::fake([
+            'https://oauth2.googleapis.com/token' => Http::response([
+                'access_token' => 'test-access-secret',
+                'expires_in' => 3600,
+                'scope' => self::EVENT_READONLY_SCOPE.' '.self::TASKS_READONLY_SCOPE.' '.self::ACCOUNT_EMAIL_SCOPE.' '.$extraScope,
+                'token_type' => 'Bearer',
+            ]),
+        ]);
+        Log::shouldReceive('warning')->once()->with('Google Calendar OAuth token response contained unexpected scopes.', [
+            'missing_required_scope_count' => 0,
+            'unexpected_scope_count' => 1,
+            'unexpected_scopes' => [$extraScope],
+        ]);
+        $user = User::factory()->create();
+        $state = str_repeat('g', 64);
+
+        $this->actingAs($user)->withSession(['google_calendar_oauth_state' => $state])
+            ->get(route('settings.google-calendar.callback', ['state' => $state, 'code' => 'one-time-code']))
+            ->assertRedirect(route('settings.edit'))
+            ->assertSessionHas('calendar_error');
+
+        $this->assertDatabaseCount('google_calendar_connections', 0);
+    }
+
     public function test_invalid_or_replayed_state_is_rejected_without_exchanging_a_code(): void
     {
         $this->configureGoogleOAuth();
