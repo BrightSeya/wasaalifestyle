@@ -217,6 +217,50 @@ class RecommendationManagementTest extends TestCase
         }
     }
 
+    public function test_weekly_plan_fills_unrecommended_sessions_at_the_preferred_time(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-23 05:00:00', 'UTC'));
+        $this->fakePrediction([
+            ['hour' => 8, 'confidence' => 0.95],
+            ['hour' => 12, 'confidence' => 0.82],
+        ]);
+        $availability = array_fill_keys(UserPreferences::days(), []);
+        $availability['mon'] = [['start' => '06:00', 'end' => '11:00']];
+        $availability['wed'] = [['start' => '06:00', 'end' => '11:00']];
+        $preferences = UserPreferences::default()->toArray();
+        $preferences['availability'] = $availability;
+        $user = User::factory()->create(['preferences' => $preferences]);
+
+        $response = $this->actingAs($user)->postJson(route('activities.weekly-plan.preview'), [
+            'mode' => 'plan',
+            'category' => 'exercise',
+            'duration_minutes' => 30,
+            'frequency' => 4,
+            'preferred_time_of_day' => '09:15',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('frequency', 4)
+            ->assertJsonPath('session_count', 4)
+            ->assertJsonPath('recommended_session_count', 2)
+            ->assertJsonPath('days.0.weekday', 1)
+            ->assertJsonPath('days.0.options.0.start_time', '08:00')
+            ->assertJsonPath('days.1.weekday', 2)
+            ->assertJsonPath('days.1.recommendation_missing', true)
+            ->assertJsonPath('days.1.start_time', '09:15')
+            ->assertJsonPath('days.1.options', [])
+            ->assertJsonPath('days.2.weekday', 3)
+            ->assertJsonPath('days.2.options.0.start_time', '08:00')
+            ->assertJsonPath('days.3.weekday', 4)
+            ->assertJsonPath('days.3.recommendation_missing', true)
+            ->assertJsonPath('days.3.start_time', '09:15');
+        $response->assertJsonMissing(['message' => 'Some weekly sessions could not be recommended with your current availability and schedule.']);
+        $this->assertSame(
+            4,
+            collect($response->json('days'))->pluck('weekday')->unique()->count(),
+        );
+    }
+
     public function test_service_down_is_handled_without_a_server_error(): void
     {
         Http::fake(function () {
