@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\GoogleCalendarOAuthService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class GoogleCalendarConnectionController extends Controller
@@ -44,7 +45,13 @@ class GoogleCalendarConnectionController extends Controller
         }
 
         $code = $request->query('code');
-        if (! is_string($code) || $code === '' || ! $google->completeAuthorization($request->user(), $code)) {
+        if (! is_string($code) || $code === '') {
+            Log::warning('Google Calendar OAuth callback did not include an authorization code.');
+
+            return to_route('settings.edit')->with('calendar_error', 'Google Calendar could not complete the secure connection. Please try again.');
+        }
+
+        if (! $google->completeAuthorization($request->user(), $code)) {
             return to_route('settings.edit')->with('calendar_error', 'Google Calendar could not complete the secure connection. Please try again.');
         }
 
