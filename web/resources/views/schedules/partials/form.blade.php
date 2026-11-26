@@ -144,7 +144,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ request()->attributes->get('cspNonce', '') }}">
     (() => {
         const date = document.querySelector('#date');
         const dateLabel = document.querySelector('[data-recurrence-date-label]');

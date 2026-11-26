@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -23,13 +24,34 @@ class SecurityHeadersTest extends TestCase
     {
         $this->app->detectEnvironment(fn () => 'production');
 
-        $this->get('/')
+        $response = $this->get('/')
             ->assertOk()
-            ->assertHeaderMissing('Strict-Transport-Security')
-            ->assertHeader('Content-Security-Policy', "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data:; font-src 'self' data: https://fonts.bunny.net https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.bunny.net https://fonts.googleapis.com; script-src 'self'; connect-src 'self'");
+            ->assertHeaderMissing('Strict-Transport-Security');
+        $policy = $response->headers->get('Content-Security-Policy');
+        $this->assertStringContainsString("script-src 'self' 'nonce-", $policy);
+        $this->assertDoesNotMatchRegularExpression("/script-src[^;]*'unsafe-inline'/", $policy);
 
         $this->get('https://localhost/')
             ->assertHeader('Strict-Transport-Security', 'max-age=31536000');
+    }
+
+    public function test_production_nonce_allows_inline_scripts_on_recommendation_forms_without_unsafe_inline(): void
+    {
+        $this->app->detectEnvironment(fn () => 'production');
+        $user = User::factory()->create(['status' => 'active']);
+
+        foreach (['/schedules/create', '/activities/create'] as $path) {
+            $response = $this->withSession(['auth_session_version' => $user->session_version])
+                ->actingAs($user)
+                ->get($path)
+                ->assertOk();
+            $policy = $response->headers->get('Content-Security-Policy');
+            preg_match("/script-src[^;]*'nonce-([^']+)'/", $policy, $matches);
+
+            $this->assertNotEmpty($matches[1] ?? null);
+            $this->assertStringContainsString('<script nonce="'.$matches[1].'">', $response->getContent());
+            $this->assertDoesNotMatchRegularExpression("/script-src[^;]*'unsafe-inline'/", $policy);
+        }
     }
 
     public function test_development_responses_do_not_receive_production_csp_or_hsts(): void

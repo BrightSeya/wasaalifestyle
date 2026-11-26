@@ -13,6 +13,12 @@ class SecurityHeaders
      */
     public function handle(Request $request, Closure $next): Response
     {
+        $cspNonce = null;
+        if (app()->environment('production')) {
+            $cspNonce = base64_encode(random_bytes(16));
+            $request->attributes->set('cspNonce', $cspNonce);
+        }
+
         $response = $next($request);
 
         $response->headers->set('X-Content-Type-Options', 'nosniff');
@@ -23,7 +29,7 @@ class SecurityHeaders
         if (app()->environment('production')) {
             $response->headers->set(
                 'Content-Security-Policy',
-                "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data:; font-src 'self' data: https://fonts.bunny.net https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.bunny.net https://fonts.googleapis.com; script-src 'self'; connect-src 'self'",
+                "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data:; font-src 'self' data: https://fonts.bunny.net https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.bunny.net https://fonts.googleapis.com; script-src 'self' 'nonce-{$cspNonce}'; connect-src 'self'",
             );
 
             if ($request->isSecure()) {

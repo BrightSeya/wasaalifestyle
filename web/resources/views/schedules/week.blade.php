@@ -110,7 +110,7 @@
         </div>
     </div>
 
-    <script>
+    <script nonce="{{ request()->attributes->get('cspNonce', '') }}">
         (() => {
             const cards = [...document.querySelectorAll('[data-occurrence-card]')];
             let pinnedCard = null;
