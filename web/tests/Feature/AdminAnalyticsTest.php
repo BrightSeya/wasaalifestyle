@@ -14,7 +14,7 @@ class AdminAnalyticsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_sees_aggregate_counts_and_metrics_from_model_files_without_private_details(): void
+    public function test_admin_sees_aggregate_counts_and_service_health_without_model_evaluation_or_private_details(): void
     {
         Http::fake(['*/health' => Http::response(['status' => 'ok', 'model_loaded' => true])]);
         $admin = User::factory()->admin()->create();
@@ -34,13 +34,9 @@ class AdminAnalyticsTest extends TestCase
             ->assertSee('1')
             ->assertSee('Schedules')
             ->assertSee('Activities')
-            ->assertSee('0.7299')
-            ->assertSee('0.7442')
-            ->assertSee('36.1%')
-            ->assertSee('3.68')
-            ->assertSee('Completion Rate Baseline')
-            ->assertSee('Logistic Regression')
-            ->assertSee('Random Forest')
+            ->assertDontSee('Slot model evaluation')
+            ->assertDontSee('Model comparison')
+            ->assertDontSee('Cross-validation F1')
             ->assertSee('Reachable (HTTP 200)')
             ->assertSee('Loaded')
             ->assertDontSee('private@example.test')
@@ -48,7 +44,7 @@ class AdminAnalyticsTest extends TestCase
             ->assertDontSee('Private Activity');
     }
 
-    public function test_missing_model_metric_files_show_an_unavailable_state(): void
+    public function test_missing_model_metric_files_do_not_break_the_admin_analytics_page(): void
     {
         Http::fake(['*/health' => Http::response(['status' => 'ok', 'model_loaded' => false])]);
         config([
@@ -59,8 +55,8 @@ class AdminAnalyticsTest extends TestCase
 
         $this->actingAs($admin)->get(route('admin.analytics'))
             ->assertOk()
-            ->assertSee('Model metrics are unavailable')
-            ->assertDontSee('0.7299')
+            ->assertDontSee('Slot model evaluation')
+            ->assertDontSee('Model metrics are unavailable')
             ->assertSee('Reachable (HTTP 200)')
             ->assertSee('Not loaded');
     }
