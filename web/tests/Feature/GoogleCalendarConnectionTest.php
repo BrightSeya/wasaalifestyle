@@ -15,6 +15,8 @@ class GoogleCalendarConnectionTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const OPENID_SCOPE = 'openid';
+
     private const EVENT_READONLY_SCOPE = 'https://www.googleapis.com/auth/calendar.events.readonly';
 
     private const TASKS_READONLY_SCOPE = 'https://www.googleapis.com/auth/tasks.readonly';
@@ -31,7 +33,7 @@ class GoogleCalendarConnectionTest extends TestCase
         $this->assertStringStartsWith('https://accounts.google.com/o/oauth2/v2/auth?', $response->headers->get('Location'));
         parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $query);
         $this->assertSame(
-            self::EVENT_READONLY_SCOPE.' '.self::TASKS_READONLY_SCOPE.' '.self::ACCOUNT_EMAIL_SCOPE,
+            self::OPENID_SCOPE.' '.self::EVENT_READONLY_SCOPE.' '.self::TASKS_READONLY_SCOPE.' '.self::ACCOUNT_EMAIL_SCOPE,
             $query['scope'],
         );
         $this->assertSame('offline', $query['access_type']);
@@ -48,7 +50,7 @@ class GoogleCalendarConnectionTest extends TestCase
                 'access_token' => 'test-access-secret',
                 'refresh_token' => 'test-refresh-secret',
                 'expires_in' => 3600,
-                'scope' => self::EVENT_READONLY_SCOPE.' '.self::TASKS_READONLY_SCOPE.' '.self::ACCOUNT_EMAIL_SCOPE,
+                'scope' => self::OPENID_SCOPE.' '.self::EVENT_READONLY_SCOPE.' '.self::TASKS_READONLY_SCOPE.' '.self::ACCOUNT_EMAIL_SCOPE,
                 'token_type' => 'Bearer',
             ]),
             'https://www.googleapis.com/oauth2/v2/userinfo' => Http::response([
@@ -69,7 +71,7 @@ class GoogleCalendarConnectionTest extends TestCase
         $this->assertSame('test-access-secret', $connection->access_token);
         $this->assertSame('test-refresh-secret', $connection->refresh_token);
         $this->assertSame(
-            self::EVENT_READONLY_SCOPE.' '.self::TASKS_READONLY_SCOPE.' '.self::ACCOUNT_EMAIL_SCOPE,
+            self::OPENID_SCOPE.' '.self::EVENT_READONLY_SCOPE.' '.self::TASKS_READONLY_SCOPE.' '.self::ACCOUNT_EMAIL_SCOPE,
             $connection->scope,
         );
         $this->assertNotSame('test-access-secret', DB::table('google_calendar_connections')->where('user_id', $user->id)->value('access_token'));
@@ -121,7 +123,7 @@ class GoogleCalendarConnectionTest extends TestCase
             'https://oauth2.googleapis.com/token' => Http::response([
                 'access_token' => 'test-access-secret',
                 'expires_in' => 3600,
-                'scope' => self::EVENT_READONLY_SCOPE.' '.self::TASKS_READONLY_SCOPE.' '.self::ACCOUNT_EMAIL_SCOPE.' '.$extraScope,
+                'scope' => self::OPENID_SCOPE.' '.self::EVENT_READONLY_SCOPE.' '.self::TASKS_READONLY_SCOPE.' '.self::ACCOUNT_EMAIL_SCOPE.' '.$extraScope,
                 'token_type' => 'Bearer',
             ]),
         ]);
@@ -184,7 +186,7 @@ class GoogleCalendarConnectionTest extends TestCase
                 'access_token' => 'test-access-secret',
                 'refresh_token' => 'test-refresh-secret',
                 'expires_in' => 3600,
-                'scope' => self::EVENT_READONLY_SCOPE.' '.self::TASKS_READONLY_SCOPE.' '.self::ACCOUNT_EMAIL_SCOPE,
+                'scope' => self::OPENID_SCOPE.' '.self::EVENT_READONLY_SCOPE.' '.self::TASKS_READONLY_SCOPE.' '.self::ACCOUNT_EMAIL_SCOPE,
                 'token_type' => 'Bearer',
             ]),
             'https://www.googleapis.com/oauth2/v2/userinfo' => Http::response([

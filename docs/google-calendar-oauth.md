@@ -1,11 +1,11 @@
 # Google Calendar OAuth setup
 
-Wasaa connects to Google Calendar and Google Tasks through the server-side OAuth authorization-code flow. It requests `https://www.googleapis.com/auth/calendar.events.readonly` and `https://www.googleapis.com/auth/tasks.readonly` for read-only imports, plus `https://www.googleapis.com/auth/userinfo.email` to display which Google account is connected. Access and refresh tokens are encrypted with Laravel's `APP_KEY` before they are stored per user.
+Wasaa connects to Google Calendar and Google Tasks through the server-side OAuth authorization-code flow. It requests the OpenID Connect `openid` scope, `https://www.googleapis.com/auth/calendar.events.readonly` and `https://www.googleapis.com/auth/tasks.readonly` for read-only imports, plus `https://www.googleapis.com/auth/userinfo.email` to display which Google account is connected. Access and refresh tokens are encrypted with Laravel's `APP_KEY` before they are stored per user.
 
 ## Google Cloud setup
 
 1. Select or create a Google Cloud project and enable both the Google Calendar API and Google Tasks API.
-2. Configure the OAuth consent screen and add the Calendar events read-only, Tasks read-only, and user email scopes.
+2. Configure the OAuth consent screen and add the `openid`, Calendar events read-only, Tasks read-only, and user email scopes.
 3. Create an OAuth client ID with application type **Web application**.
 4. Add the exact callback URI to **Authorized redirect URIs**. For the default local setup with `php artisan serve`, use `http://localhost:8000/settings/google-calendar/callback`. If the app uses another host or port, set `APP_URL` and the registered redirect URI to match it exactly.
 5. Copy the client ID and secret into the local `web/.env` file. Do not commit real credentials.
