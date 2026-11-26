@@ -8,6 +8,7 @@ use App\Services\GoogleCalendarOAuthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class GoogleCalendarConnectionTest extends TestCase
@@ -86,6 +87,30 @@ class GoogleCalendarConnectionTest extends TestCase
             ->assertRedirect(route('settings.edit'))
             ->assertSessionHas('calendar_error');
         Http::assertSentCount(2);
+    }
+
+    public function test_token_exchange_failure_logs_google_error_code_without_credentials(): void
+    {
+        $this->configureGoogleOAuth();
+        Http::fake([
+            'https://oauth2.googleapis.com/token' => Http::response([
+                'error' => 'invalid_client',
+                'error_description' => 'Sensitive response details must not be logged.',
+            ], 401),
+        ]);
+        Log::shouldReceive('warning')->once()->with('Google Calendar OAuth token exchange failed.', [
+            'http_status' => 401,
+            'google_error_code' => 'invalid_client',
+        ]);
+        $user = User::factory()->create();
+        $state = str_repeat('e', 64);
+
+        $this->actingAs($user)->withSession(['google_calendar_oauth_state' => $state])
+            ->get(route('settings.google-calendar.callback', ['state' => $state, 'code' => 'one-time-code']))
+            ->assertRedirect(route('settings.edit'))
+            ->assertSessionHas('calendar_error');
+
+        $this->assertDatabaseCount('google_calendar_connections', 0);
     }
 
     public function test_invalid_or_replayed_state_is_rejected_without_exchanging_a_code(): void

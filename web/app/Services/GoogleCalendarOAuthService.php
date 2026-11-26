@@ -7,7 +7,9 @@ use App\Exceptions\GoogleCalendarServiceUnavailable;
 use App\Models\GoogleCalendarConnection;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class GoogleCalendarOAuthService
 {
@@ -68,11 +70,24 @@ class GoogleCalendarOAuthService
                 'redirect_uri' => config('services.google_calendar.redirect_uri'),
                 'grant_type' => 'authorization_code',
             ]);
-        } catch (ConnectionException) {
+        } catch (ConnectionException $exception) {
+            Log::warning('Google Calendar OAuth token exchange connection failed.', [
+                'exception_class' => $exception::class,
+            ]);
+
             return false;
         }
 
-        $tokens = $response->successful() ? $response->json() : null;
+        if (! $response->successful()) {
+            Log::warning('Google Calendar OAuth token exchange failed.', [
+                'http_status' => $response->status(),
+                'google_error_code' => $this->googleErrorCode($response),
+            ]);
+
+            return false;
+        }
+
+        $tokens = $response->json();
         if (! is_array($tokens)
             || ! is_string($tokens['access_token'] ?? null)
             || $tokens['access_token'] === ''
@@ -81,18 +96,39 @@ class GoogleCalendarOAuthService
             || ! is_string($tokens['token_type'] ?? null)
             || strtolower($tokens['token_type']) !== 'bearer'
             || ! is_string($tokens['scope'] ?? null)) {
+            Log::warning('Google Calendar OAuth token response failed validation.', [
+                'has_access_token' => is_array($tokens)
+                    && is_string($tokens['access_token'] ?? null)
+                    && $tokens['access_token'] !== '',
+                'has_valid_expiry' => is_array($tokens)
+                    && is_numeric($tokens['expires_in'] ?? null)
+                    && (int) $tokens['expires_in'] > 0,
+                'has_bearer_token_type' => is_array($tokens)
+                    && is_string($tokens['token_type'] ?? null)
+                    && strtolower($tokens['token_type']) === 'bearer',
+                'has_scope' => is_array($tokens) && is_string($tokens['scope'] ?? null),
+            ]);
+
             return false;
         }
 
         $grantedScopes = preg_split('/\s+/', trim($tokens['scope'])) ?: [];
-        if (array_diff(self::AUTHORIZATION_SCOPES, $grantedScopes) !== []
-            || array_diff($grantedScopes, self::AUTHORIZATION_SCOPES) !== []) {
+        $missingScopes = array_diff(self::AUTHORIZATION_SCOPES, $grantedScopes);
+        $unexpectedScopes = array_diff($grantedScopes, self::AUTHORIZATION_SCOPES);
+        if ($missingScopes !== [] || $unexpectedScopes !== []) {
+            Log::warning('Google Calendar OAuth token response contained unexpected scopes.', [
+                'missing_required_scope_count' => count($missingScopes),
+                'unexpected_scope_count' => count($unexpectedScopes),
+            ]);
+
             return false;
         }
 
         $connection = $user->googleCalendarConnection()->firstOrNew();
         $refreshToken = $tokens['refresh_token'] ?? $connection->refresh_token;
         if (! is_string($refreshToken) || $refreshToken === '') {
+            Log::warning('Google Calendar OAuth token response did not include a refresh token.');
+
             return false;
         }
 
@@ -100,15 +136,33 @@ class GoogleCalendarOAuthService
             $userInfoResponse = Http::withToken($tokens['access_token'])
                 ->timeout(10)
                 ->get(self::USER_INFO_ENDPOINT);
-        } catch (ConnectionException) {
+        } catch (ConnectionException $exception) {
+            Log::warning('Google Calendar OAuth account verification connection failed.', [
+                'exception_class' => $exception::class,
+            ]);
+
             return false;
         }
 
-        $userInfo = $userInfoResponse->successful() ? $userInfoResponse->json() : null;
+        if (! $userInfoResponse->successful()) {
+            Log::warning('Google Calendar OAuth account verification request failed.', [
+                'http_status' => $userInfoResponse->status(),
+                'google_error_code' => $this->googleErrorCode($userInfoResponse),
+            ]);
+
+            return false;
+        }
+
+        $userInfo = $userInfoResponse->json();
         $email = is_array($userInfo) ? ($userInfo['email'] ?? null) : null;
         if (! is_string($email)
             || filter_var($email, FILTER_VALIDATE_EMAIL) === false
             || ($userInfo['verified_email'] ?? false) !== true) {
+            Log::warning('Google Calendar OAuth account email could not be verified.', [
+                'has_valid_email' => is_string($email) && filter_var($email, FILTER_VALIDATE_EMAIL) !== false,
+                'email_verified' => is_array($userInfo) && ($userInfo['verified_email'] ?? false) === true,
+            ]);
+
             return false;
         }
 
@@ -121,6 +175,15 @@ class GoogleCalendarOAuthService
         ])->save();
 
         return true;
+    }
+
+    private function googleErrorCode(Response $response): ?string
+    {
+        $errorCode = $response->json('error');
+
+        return is_string($errorCode) && preg_match('/\A[a-z_]{1,64}\z/', $errorCode) === 1
+            ? $errorCode
+            : null;
     }
 
     public function hasRequiredReadScopes(?GoogleCalendarConnection $connection): bool
